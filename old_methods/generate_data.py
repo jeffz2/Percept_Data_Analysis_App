@@ -34,7 +34,7 @@ import pytz
 from typing import Optional, Tuple, List
 
 def generate_data(
-    subject_name: str, 
+    subject_name: str,
     param: dict,
     percept_data: Optional[dict] = None,  
     zone_index: Optional[dict] = None, 
