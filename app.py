@@ -6,8 +6,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QUrl, QTimer
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEngineSettings
-import generate_data
-import calc_circadian
+import generate_raw
+import process_data
+import model_data
 import plotting_utils as plots
 import gui_utils
 import multiprocessing
@@ -16,22 +17,15 @@ WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
 LOADING_SCREEN_INTERVAL = 100  # in milliseconds
 
-def worker_function(param_dict, file_list, result_queue):
+def worker_function(pt_name, result_queue):
     try:
-        percept_data, zone_index = generate_data.generate_data(
-            subject_name=param_dict['subject_name'],
-            param=param_dict,
-            file_list=file_list
-        )
+        raw_df, pt_changes_df, patient_dict = generate_raw.generate_raw(pt_name)
 
-        percept_data = calc_circadian.calc_circadian(
-            percept_data=percept_data,
-            zone_index=zone_index,
-            cosinor_window_left=int(param_dict['cosinor_window_left']),
-            cosinor_window_right=int(param_dict['cosinor_window_right']),
-            include_nonlinear=param_dict['include_nonlinear']
-        )
-        result_queue.put((percept_data, zone_index))
+        processed_data = process_data.process_data(pt_name, raw_df, patient_dict)
+
+        df_w_preds = model_data.model_data(processed_data)
+
+        result_queue.put((df_w_preds, pt_changes_df))
 
     except Exception as e:
         print(f"Error in worker_function: {e}")

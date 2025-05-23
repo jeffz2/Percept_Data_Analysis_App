@@ -5,10 +5,12 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QIcon
 from PySide6.QtCore import Qt, QUrl, QTimer
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEngineSettings
-import generate_data
-import calc_circadian
+import generate_raw
+import process_data
+import model_data
 import plotting_utils as plots
 import gui_utils
 import multiprocessing
@@ -26,22 +28,15 @@ WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
 LOADING_SCREEN_INTERVAL = 100  # in milliseconds
 
-def worker_function(param_dict, file_list, result_queue):
+def worker_function(pt_name, result_queue):
     try:
-        percept_data, zone_index = generate_data.generate_data(
-            subject_name=param_dict['subject_name'],
-            param=param_dict,
-            file_list=file_list
-        )
+        raw_df, pt_changes_df, patient_dict = generate_raw.generate_raw(pt_name)
 
-        percept_data = calc_circadian.calc_circadian(
-            percept_data=percept_data,
-            zone_index=zone_index,
-            cosinor_window_left=int(param_dict['cosinor_window_left']),
-            cosinor_window_right=int(param_dict['cosinor_window_right']),
-            include_nonlinear=param_dict['include_nonlinear']
-        )
-        result_queue.put((percept_data, zone_index))
+        processed_data = process_data.process_data(pt_name, raw_df, patient_dict)
+
+        df_w_preds = model_data.model_data(processed_data)
+
+        result_queue.put((df_w_preds, pt_changes_df))
 
     except Exception as e:
         print(f"Error in worker_function: {e}")
@@ -119,6 +114,14 @@ class MainWindow(QWidget):
         self.opening_screen.hide()
         self.frame1.show()
 
+    def show_patient_menu(self):
+        self.setGeometry(100, 100, WINDOW_WIDTH, WINDOW_HEIGHT)
+        self.patient_menu.show()
+    
+    def show_help_menu(self):
+        self.setGeometry(100, 100, WINDOW_WIDTH, WINDOW_HEIGHT)
+        self.help_menu.show()
+
     def show_loading_screen(self, param_dict):
         self.loading_screen.show()
         self.loading_screen.progress_bar.setRange(0, 0)
@@ -190,10 +193,8 @@ class OpeningScreen(QWidget):
         self.description_label = QLabel(
             'This application helps you process and analyze Medtronic percept data.<br>'
             'Please proceed to start the data processing.<br><br>'
-            '<a href="https://github.com/ProvenzaLab/Percept_Data_Analysis_App/blob/main/README.md#user-manual" style="color: #1e90ff;">Click this link for documentation on the app</a><br><br>'
             'Developed by the Provenza Lab', self)
         self.description_label.setAlignment(Qt.AlignCenter)
-        self.description_label.setOpenExternalLinks(True)
         self.description_label.setStyleSheet("""
             QLabel {
                 font-size: 16px;
@@ -219,10 +220,50 @@ class OpeningScreen(QWidget):
             }
         """)
         self.proceed_button.clicked.connect(self.proceed)
-        self.layout.addWidget(self.proceed_button, alignment=Qt.AlignCenter)
+        self.layout.addWidget(self.proceed_button, alignment=Qt.AlignLeft)
+
+        self.patient_menu_button = QPushButton("Add Patients", self)
+        self.patient_menu_button.setStyleSheet("""
+            QPushButton {
+                background-color: #1e90ff;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 10px 20px;
+                font-size: 18px;
+            }
+            QPushButton:hover {
+                background-color: #1c86ee;
+            }
+        """)
+        self.patient_menu_button.clicked_connect(self.patient_menu)
+        self.layout.addWidget(self.patient_menu_button, alignment=Qt.AlignRight)
+
+        def open_url(url):
+            """Opens the given URL in the default web browser."""
+            qurl = QUrl(url)
+            QDesktopServices.openUrl(qurl)
+
+        self.doc_button = QPushButton(self)
+        doc_icon = "doc_icon.png"
+        self.doc_button.setIcon(doc_icon)
+        self.doc_button.clicked_connect(lambda: open_url("https://github.com/jeffz2/Percept_Data_Analysis_App/blob/percept_2025_dev/README.md"))
+        self.layout.addWidget(self.doc_button, alignment=(Qt.AlignLeft | Qt.AlignBottom))
+
+        self.help_button = QPushButton(self)
+        help_icon = "help_icon.png"
+        self.help_button.setIcon(help_icon)
+        self.help_button.clicked_connect(self.help_menu)
+        self.layout.addWidget(self.help_button, alignment=(Qt.AlignRight | Qt.AlignBottom))
 
     def proceed(self):
         self.parent.show_frame1()
+
+    def patient_menu(self):
+        self.parent.show_patient_menu()
+
+    def help_menu(self):
+        self.parent.show_help_menu()
 
 class LoadingScreen(QWidget):
     def __init__(self, parent):

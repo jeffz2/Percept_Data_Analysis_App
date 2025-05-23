@@ -15,6 +15,8 @@ def get_json_filenames(root_dir):
     Returns:
         all_files (list): JSON descendents of root directory containing LFP data.
     """
+
+    root_dir = Path(root_dir)
     if not root_dir.exists():
         return []
     

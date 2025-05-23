@@ -1,4 +1,3 @@
-import yaml
 import json
 import pandas as pd
 import numpy as np
@@ -11,17 +10,13 @@ import json_utils
 def generate_raw(pt_name: str):
 
     # Setup processing parameters
-    with open('patient_info.yaml') as stream:
+    with open('patient_info.json') as f:
         try:
-            patient_info = yaml.safe_load(stream)
-        except yaml.YAMLError as e:
+            patient_info = json.load(f)
+        except json.JSONDecodeError as e:
             print(e)
-            return FileNotFoundError
-    patient_dict = {d['id']: d for d in patient_info['patients']}[pt_name]
-
-    
-    central_time = ZoneInfo('America/Chicago')
-    get_dates = np.vectorize(lambda d: date(d.year, d.month, d.day))
+            return json.JSONDecodeError
+    patient_dict = patient_info[pt_name]
 
     # Read json files from provided directory
 
@@ -81,4 +76,4 @@ def generate_raw(pt_name: str):
     raw_df['lead_model'] = raw_df['left_lead_model'].where(raw_df['left_lead_model'] == raw_df['right_lead_model'], None)
     raw_df.drop(columns=['left_lead_model', 'right_lead_model'], inplace=True)
 
-    return raw_df, pt_changes_df
+    return raw_df, pt_changes_df, patient_dict

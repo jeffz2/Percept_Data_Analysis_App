@@ -7,12 +7,11 @@ from datetime import timedelta, datetime, date
 import state_utils
 
 central_time = ZoneInfo('America/Chicago')
-def process_data(pt_name: str, raw_data: pd.DataFrame):
-    interpolate = True
+def process_data(pt_name: str, raw_data: pd.DataFrame, patient_dict: dict):
 
     # Fill outliers: define which filling method(s) you want to use below
     outlier_fill_methods = {
-        # 'naive': utils.fill_outliers,
+        'naive': utils.fill_outliers,
         'SLOvER+': utils.fill_outliers_threshold,
         'OvER': utils.fill_outliers_overages
     }
@@ -39,7 +38,7 @@ def process_data(pt_name: str, raw_data: pd.DataFrame):
     processed_data = raw_data.groupby(['pt_id', 'time_bin', 'lead_location']).tail(1).copy()
 
     # Add column for days since first DBS activation
-    dbs_on_date = state_utils.get_dbs_on_date(pt_name)
+    dbs_on_date = state_utils.get_dbs_on_date(patient_dict)
     processed_data['days_since_dbs'] = [dt.days for dt in (processed_data['CT_timestamp'].dt.date - dbs_on_date)]
 
     # Add empty new rows to fill in missing timestamps, and interpolate outliers and missing rows. Label which rows are interpolated.
@@ -49,24 +48,27 @@ def process_data(pt_name: str, raw_data: pd.DataFrame):
         processed_data = pd.concat((processed_data, added_rows), ignore_index=True)
     processed_data.sort_values(by=['pt_id', 'lead_location', 'timestamp'], inplace=True, ignore_index=True)
 
-     # Fix overvoltages and fill in holes in data using the specified method(s).
-    for name, func in outlier_fill_methods.items():
-        col_dict = {'lfp_left_outliers_filled': f'lfp_left_outliers_filled_{name}', 
-                    'lfp_left_filled': f'lfp_left_filled_{name}',
-                    'lfp_right_outliers_filled': f'lfp_right_outliers_filled_{name}',
-                    'lfp_right_filled': f'lfp_right_filled_{name}'}
-        filled_cols = processed_data.groupby(['pt_id', 'lead_location'], group_keys=False)\
-            .apply(lambda g: utils.fill_data(g, cols_to_fill=['lfp_left_raw', 'lfp_right_raw'], outlier_fill_method=func), include_groups=False)
-        filled_cols.rename(columns=col_dict, errors='ignore', inplace=True)
-        processed_data = pd.merge(processed_data, filled_cols, how='outer', left_index=True, right_index=True)
-    filled_cols = [f'lfp_left_filled_{name}' for name in outlier_fill_methods.keys()] + \
-                  [f'lfp_right_filled_{name}' for name in outlier_fill_methods.keys()]
+    # Fix overvoltages and fill in holes in data using the specified method(s).
+    # Adjust outlier filling methods as necessary
+    name = 'SLOvER+' 
+    
+    func = outlier_fill_methods[name]
+    col_dict = {'lfp_left_outliers_filled': f'lfp_left_outliers_filled_{name}', 
+                'lfp_left_filled': f'lfp_left_filled_{name}',
+                'lfp_right_outliers_filled': f'lfp_right_outliers_filled_{name}',
+                'lfp_right_filled': f'lfp_right_filled_{name}'}
+    filled_cols = processed_data.groupby(['pt_id', 'lead_location'], group_keys=False)\
+        .apply(lambda g: utils.fill_data(g, cols_to_fill=['lfp_left_raw', 'lfp_right_raw'], outlier_fill_method=func), include_groups=False)
+    filled_cols.rename(columns=col_dict, errors='ignore', inplace=True)
+    processed_data = pd.merge(processed_data, filled_cols, how='outer', left_index=True, right_index=True)
+    filled_cols = [f'lfp_left_filled_{name}'] + \
+                  [f'lfp_right_filled_{name}']
 
     processed_data.dropna(subset=filled_cols, how='all', inplace=True)
 
     # Mark rows that were filled in with 'interpolated' tag.
-    for name in outlier_fill_methods.keys():
-        processed_data.loc[processed_data[f'lfp_left_filled_{name}'].notna() & (processed_data['lfp_left_raw'] != processed_data[f'lfp_left_outliers_filled_{name}']), 'interpolated'] = True
+    processed_data.loc[processed_data[f'lfp_left_filled_{name}'].notna() & (processed_data['lfp_left_raw'] != processed_data[f'lfp_left_outliers_filled_{name}']), 'interpolated'] = True
+    processed_data.loc[processed_data[f'lfp_right_filled_{name}'].notna() & (processed_data['lfp_right_raw'] != processed_data[f'lfp_right_outliers_filled_{name}']), 'interpolated'] = True
 
     # Z score LFP data within each day.
     processed_data = processed_data.reset_index(drop=True)
@@ -86,11 +88,12 @@ def process_data(pt_name: str, raw_data: pd.DataFrame):
     # Add new lag1 column for autoregression.
     groups_left = processed_data.groupby(['lead_location', 'contig_left'], group_keys=False)
     groups_right = processed_data.groupby(['lead_location', 'contig_right'], group_keys=False)
-    for name in zscored_cols:
-        processed_data = processed_data.join(groups_left.apply(lambda g: pd.DataFrame({f'{name}_lag_1': g[name].shift(periods=1)}), include_groups=False), how='left')
+    for i, name in enumerate(zscored_cols):
+        if i == 0:
+            processed_data = processed_data.join(groups_left.apply(lambda g: pd.DataFrame({f'{name}_lag_1': g[name].shift(periods=1)}), include_groups=False), how='left')
+        else:   processed_data = processed_data.join(groups_right.apply(lambda g: pd.DataFrame({f'{name}_lag_1': g[name].shift(periods=1)}), include_groups=False), how='left')
 
-    #processed_data = state_utils.get_state_labels(processed_data, f'most_recent_{scale_name}_value', scale_name, scale_processed_data.query('pt_id == @pt_id'), dbs_on_date, pt_id, datetime.now().date())
-    #state_labels = scale_utils.add_disinhibited(processed_data, patient_dict[pt_id])
+    state_labels = state_utils.get_state_labels(processed_data, patient_dict)
     processed_data = processed_data.drop(columns=state_labels.columns, errors='ignore').join(state_labels)
 
     # Add column for patient's ID
@@ -107,7 +110,9 @@ def process_data(pt_name: str, raw_data: pd.DataFrame):
 
     # Print outlier composition
     vcvs_df = processed_data.query('lead_location == "VC/VS"')
-    print(f'{pt_name} Left Outlier %: {vcvs_df.groupby('pt_id')['is_outlier_left'].sum() / vcvs_df.groupby('pt_id')['is_outlier_left'].count() * 100}')
-    print(f'{pt_name} Right Outlier %: {vcvs_df.groupby('pt_id')['is_outlier_right'].sum() / vcvs_df.groupby('pt_id')['is_outlier_right'].count() * 100}')
+    left_outliers = vcvs_df['is_outlier_left'].sum() / vcvs_df['is_outlier_left'].count() * 100
+    right_outliers = vcvs_df['is_outlier_right'].sum() / vcvs_df['is_outlier_right'].count() * 100
+    print(f'{pt_name} Left Outlier %: {left_outliers}')
+    print(f'{pt_name} Right Outlier %: {right_outliers}')
 
     return processed_data
