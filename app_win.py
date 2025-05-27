@@ -7,8 +7,9 @@ from PySide6.QtGui import QIcon
 from PySide6.QtCore import Qt, QUrl, QTimer
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEngineSettings
-import generate_data
-import calc_circadian
+import generate_raw
+import process_data
+import model_data
 import plotting_utils as plots
 import gui_utils
 import multiprocessing
@@ -17,7 +18,7 @@ import os
 
 try:
     from ctypes import windll
-    myappid = 'Provenza_Labs.Percept_Data_Analysis App.v1.0'
+    myappid = 'Provenza_Labs.Percept_Data_Analysis App.v2.0'
     windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 except ImportError:
     pass
@@ -26,22 +27,15 @@ WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
 LOADING_SCREEN_INTERVAL = 100  # in milliseconds
 
-def worker_function(param_dict, file_list, result_queue):
+def worker_function(param_dict, result_queue):
     try:
-        percept_data, zone_index = generate_data.generate_data(
-            subject_name=param_dict['subject_name'],
-            param=param_dict,
-            file_list=file_list
-        )
+        raw_df, pt_changes_df = generate_raw.generate_raw(param_dict['subject_name'])
 
-        percept_data = calc_circadian.calc_circadian(
-            percept_data=percept_data,
-            zone_index=zone_index,
-            cosinor_window_left=int(param_dict['cosinor_window_left']),
-            cosinor_window_right=int(param_dict['cosinor_window_right']),
-            include_nonlinear=param_dict['include_nonlinear']
-        )
-        result_queue.put((percept_data, zone_index))
+        processed_data = process_data.process_data(param_dict['subject_name'], raw_df, param_dict)
+
+        df_w_preds = model_data.model_data(processed_data)
+
+        result_queue.put((df_w_preds, pt_changes_df))
 
     except Exception as e:
         print(f"Error in worker_function: {e}")
@@ -124,16 +118,10 @@ class MainWindow(QWidget):
         self.loading_screen.progress_bar.setRange(0, 0)
         self.frame1.hide()
 
-        file_list = gui_utils.open_file_dialog(self)
-
-        if not file_list:
-            self.on_script_finished(None, None)
-            return
-
         self.param_dict = gui_utils.translate_param_dict(param_dict)
         self.worker_process = multiprocessing.Process(
             target=worker_function,
-            args=(self.param_dict, file_list, self.result_queue)
+            args=(self.param_dict, self.result_queue)
         )
         self.worker_process.start()
         self.timer.start(LOADING_SCREEN_INTERVAL)
@@ -145,23 +133,23 @@ class MainWindow(QWidget):
                 if result is None:
                     self.on_script_finished(None, None)
                 else:
-                    percept_data, zone_index = result
+                    df_w_preds, pt_changes_df = result
                     self.worker_process.terminate()
-                    self.on_script_finished(percept_data, zone_index)
+                    self.on_script_finished(df_w_preds, pt_changes_df)
         except Exception as e:
             print(f"Error checking results: {e}")
 
-    def on_script_finished(self, percept_data=None, zone_index=None):
+    def on_script_finished(self, df_w_preds=None, pt_changes_df=None):
         self.loading_screen.hide()
-        if percept_data and zone_index:
-            self.show_frame2(percept_data, zone_index)
+        if df_w_preds:
+            self.show_frame2(df_w_preds, pt_changes_df)
         else:
             QMessageBox.warning(self, "Error", "Failed to process the data. Please try again.")
             self.show_frame1()
 
-    def show_frame2(self, percept_data, zone_index):
+    def show_frame2(self, df_w_preds, pt_changes_df):
         self.setGeometry(100, 100, 1200, 800)
-        self.frame2 = Frame2(self, self.param_dict, percept_data, zone_index)
+        self.frame2 = Frame2(self, self.param_dict, df_w_preds, pt_changes_df)
         self.layout.addWidget(self.frame2)
         self.frame1.hide()
         self.frame2.show()
@@ -266,12 +254,12 @@ class LoadingScreen(QWidget):
         self.setLayout(self.layout)
 
 class Frame2(QWidget):
-    def __init__(self, parent, param_dict, percept_data, zone_index):
+    def __init__(self, parent, param_dict, df_w_preds, pt_changes_df):
         super().__init__(parent)
         self.parent = parent
         self.param_dict = param_dict
-        self.percept_data = percept_data
-        self.zone_index = zone_index
+        self.df_w_preds = df_w_preds
+        self.pt_changes_df = pt_changes_df
         self.current_plot = None
         self.initUI()
 
@@ -315,9 +303,8 @@ class Frame2(QWidget):
     def populate_json_fields(self):
         self.json_text.append(f"Subject_name: {self.param_dict['subject_name']}\n")
         self.json_text.append(f"Initial_DBS_programming_date: {self.param_dict['dbs_date']}\n")
-        self.json_text.append(f"Pre_DBS_example_days: {self.param_dict['pre_DBS_example_days']}\n")
-        self.json_text.append(f"Post_DBS_example_days: {self.param_dict['post_DBS_example_days']}\n")
-        if(len(self.param_dict['responder_zone_idx']) > 0):
+        self.json_text.append(f"Hemisphere: {self.param_dict['hemisphere']}\n")
+        if(self.param_dict['responder']):
             self.json_text.append(f"Responder_date: {self.param_dict['responder_date']}\n")
         else:
             self.json_text.append(f"Responder: {False}\n")
@@ -369,12 +356,9 @@ class Frame2(QWidget):
 
     def update_plot(self):
         fig = plots.plot_metrics(
-            percept_data=self.percept_data,
+            df_w_preds=self.df_w_preds,
             subject=self.param_dict['subject_name'],
             hemisphere=self.param_dict['hemisphere'],
-            pre_DBS_bounds=self.param_dict['pre_DBS_example_days'],
-            post_DBS_bounds=self.param_dict['post_DBS_example_days'],
-            zone_index=self.zone_index
         )
 
         self.current_plot = fig
@@ -398,7 +382,7 @@ class Frame2(QWidget):
     def export_data(self):
         file_path = gui_utils.open_save_dialog(self, "Save Data", "")
         if file_path:
-            lin_ar_df = gui_utils.prepare_export_data(self.percept_data, self.param_dict)
+            lin_ar_df = gui_utils.prepare_export_data(self.df_w_preds, self.pt_changes_df, self.param_dict)
             gui_utils.save_lin_ar_feature(lin_ar_df, file_path)
 
 class Frame1(QWidget):
@@ -409,8 +393,7 @@ class Frame1(QWidget):
         self.field_order = [
             "subject_name",
             "Initial_DBS_programming_date",
-            "pre_DBS_example_days",
-            "post_DBS_example_days"
+            "directory"
         ]
         self.tooltips = self.get_tooltips()
         self.initUI()
@@ -431,20 +414,18 @@ class Frame1(QWidget):
 
     def get_initial_fields(self):
         return {
-            "subject_name": "009",
-            "Initial_DBS_programming_date": "12-22-2023",
-            "pre_DBS_example_days": ["12-10-2023", "12-13-2023"],
-            "post_DBS_example_days": ["03-16-2024", "03-18-2024"],
-            "responder": False,
-            "responder_date": ""
+            "subject_name": "B001",
+            "Initial_DBS_programming_date": "2021-03-10",
+            "directory":  "Z:/PerceptOCD-48392/001/LFP/R",
+            "responder": True,
+            "responder_date": "2021-03-10"
         }
 
     def get_tooltips(self):
         return {
             "subject_name": "Enter the subject's name or ID.",
-            "Initial_DBS_programming_date": "Enter the date of initial DBS programming in MM-DD-YYYY format.",
-            "pre_DBS_example_days": "Enter two example days before DBS in MM-DD-YYYY format.",
-            "post_DBS_example_days": "Enter two example days after DBS in MM-DD-YYYY format.",
+            "Initial_DBS_programming_date": "Enter the date of initial DBS programming in YYYY-MM-DD format.",
+            "directory": "Enter the path of the directory containing the subject's data (You can directly use CTRL-SHIFT-C to copy and CTRL-V to paste the path)",
             "responder": "Select if the subject is a responder to the treatment.",
             "responder_date": "Enter the date when the subject became a responder in MM-DD-YYYY format."
         }
@@ -538,17 +519,15 @@ class Frame1(QWidget):
 
     def validate_fields(self):
         if not gui_utils.validate_date(self.entries['Initial_DBS_programming_date'].text()):
-            QMessageBox.warning(self, "Invalid Input", "Initial DBS programming date must be in the format MM-DD-YYYY")
+            QMessageBox.warning(self, "Invalid Input", "Initial DBS programming date must be in the format YYYY-MM-DD")
             return False
 
         if not self.entries['subject_name'].text():
             QMessageBox.warning(self, "Invalid Input", "Subject name must be filled in")
             return False
 
-        pre_DBS_example_days = [entry.text() for entry in self.entries['pre_DBS_example_days']]
-        post_DBS_example_days = [entry.text() for entry in self.entries['post_DBS_example_days']]
-        if not all(gui_utils.validate_date(date) for date in pre_DBS_example_days + post_DBS_example_days):
-            QMessageBox.warning(self, "Invalid Input", "Example days must be in the format MM-DD-YYYY")
+        if not self.entries['directory'].text():
+            QMessageBox.warning(self, "Invalid Input", "Subject data directory must be filled in")
             return False
 
         if self.responder_yes_checkbox.isChecked() and not gui_utils.validate_date(self.responder_date_entry.text()):
@@ -567,10 +546,9 @@ class Frame1(QWidget):
 
         param_dict = {}
         for key, entry in self.entries.items():
-            if isinstance(entry, tuple):
-                param_dict[key] = [e.text() for e in entry]
-            else:
-                param_dict[key] = entry.text()
+            if key == "directory":
+                param_dict[key] = entry.text().replace("\\", "/")
+            param_dict[key] = entry.text()
 
         param_dict["responder"] = self.responder_yes_checkbox.isChecked()
         if self.responder_yes_checkbox.isChecked():

@@ -4,44 +4,20 @@ import pandas as pd
 import plotly.io as pio
 import tempfile
 from PySide6.QtWidgets import QFileDialog
+import numpy as np
 
-DATE_FORMAT = '%m-%d-%Y'
+DATE_FORMAT = '%Y-%m-%d'
+HEMI_DICT = {0: "left", 1: "right"}
+INTERP_MODEL = 'SLOvER+'
 
 def translate_param_dict(input_data):  
-    def days_difference(date_str, reference_date_str):
-        date = datetime.strptime(date_str, DATE_FORMAT)
-        reference_date = datetime.strptime(reference_date_str, DATE_FORMAT)
-        return (date - reference_date).days
-
-    pre_DBS_example_days = [days_difference(day, input_data['Initial_DBS_programming_date']) for day in input_data['pre_DBS_example_days']]
-    post_DBS_example_days = [days_difference(day, input_data['Initial_DBS_programming_date']) for day in input_data['post_DBS_example_days']]
-
-    hemisphere = 0
-    
-    current_day = datetime.now().strftime(DATE_FORMAT)
-    if input_data['responder']:
-        responder_zone_idx = (
-            days_difference(input_data['responder_date'], input_data['Initial_DBS_programming_date']), 
-            days_difference(current_day, input_data['responder_date'])
-        )
-        input_data['responder_zone_idx'] = responder_zone_idx
-        input_data['non_responder_idx'] = []
-    else:
-        input_data['responder_zone_idx'] = []
-        input_data['non_responder_idx'] = (0, days_difference(current_day, input_data['Initial_DBS_programming_date']))
-        
     translated_data = {
         "dbs_date": input_data['Initial_DBS_programming_date'],
-        "responder_zone_idx": input_data['responder_zone_idx'],
-        "non_responder_idx": input_data['non_responder_idx'],
         "subject_name": input_data['subject_name'],
-        "pre_DBS_example_days": pre_DBS_example_days,
-        "post_DBS_example_days": post_DBS_example_days,
-        "hemisphere": hemisphere,
-        "cosinor_window_left": 2,
-        "cosinor_window_right": 2,
-        "include_nonlinear": False,
-        "responder_date": input_data['responder_date']
+        "directory": input_data['directory'],
+        "responder": input_data['responder'],
+        "responder_date": input_data['responder_date'],
+        "hemisphere": 0
     }
 
     return translated_data
@@ -87,21 +63,16 @@ def create_temp_plot(fig):
         temp_file.write(fig.to_html(include_plotlyjs='cdn').encode('utf-8'))
         return temp_file.name
 
-def prepare_export_data(percept_data, param_dict):
-    linAR_r2 = percept_data['linearAR_R2'][param_dict['subject_name']][param_dict['hemisphere']]
-    days = percept_data['days'][param_dict['subject_name']][param_dict['hemisphere']]
+def prepare_export_data(df_w_preds, param_dict):
+    df_w_preds.sort_values(by='time_bin', inplace=True)
+    linAR_r2 = np.unique(df_w_preds[f'lfp_{HEMI_DICT[param_dict['hemisphere']]}_day_r2_{INTERP_MODEL}'].values)
+    days = np.unique(df_w_preds['days_since_dbs'].values)
     export_dict = {
         'Days_since_DBS': days.tolist(),
         'R2_values': linAR_r2.tolist()
     }
     lin_ar_df = pd.DataFrame(export_dict)
-    lin_ar_df['activation_state'] = lin_ar_df['Days_since_DBS'].apply(
-        lambda x: (
-            'Responder' if len(param_dict['responder_zone_idx']) > 0 and x > param_dict['responder_zone_idx'][0]
-            else 'Pre-DBS' if x < 0
-            else 'Chronic State'
-        )   
-    )
+    lin_ar_df['activation_state'] = (df_w_preds.drop_duplicates('days_since_dbs'))['state_label_str'].values
     return lin_ar_df
 
 def validate_date(date_str):

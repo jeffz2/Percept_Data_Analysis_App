@@ -6,7 +6,7 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        ('C:/Users/Vince/OneDrive/Desktop/code/Percept_Data_Analysis_App/.venv/Lib/site-packages/kaleido', 'kaleido'), 
+        ('C:/Users/jeffr/anaconda3/envs/percept_app/Lib/site-packages/kaleido', 'kaleido'), 
     ],
     hiddenimports=[],
     hookspath=[],

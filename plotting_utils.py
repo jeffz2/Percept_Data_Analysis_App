@@ -79,32 +79,30 @@ def _ema_plot(days: np.ndarray, stat: np.ndarray, ema_skip: int) -> tuple[np.nda
     return days[skip_idx:], ema[skip_idx:]
 
 def plot_metrics(
-    percept_data: dict, 
+    df_w_preds: pd.DataFrame, 
     subject: str, 
     hemisphere: int, 
-    pre_DBS_bounds: tuple[int, int], 
-    post_DBS_bounds: tuple[int, int], 
-    zone_index: dict
 ) -> go.Figure:
     """
     Generate a plot with multiple subplots to visualize various metrics including LFP amplitude, linear AR model,
     and R² values over time, before and after DBS.
 
     Parameters:
-        percept_data (dict): Dictionary containing processed percept data.
+        df_w_preds (pd.DataFrame): Pandas dataframe containing processed percept data.
         subject (str): Subject identifier.
         hemisphere (int): Hemisphere index (0 or 1).
-        pre_DBS_bounds (tuple[int, int]): X-axis bounds for the pre-DBS zoomed plot.
-        post_DBS_bounds (tuple[int, int]): X-axis bounds for the post-DBS zoomed plot.
-        zone_index (dict): Dictionary containing responder and non-responder indices for each subject.
 
     Returns:
         go.Figure: A Plotly figure with the generated subplots.
     """
     # Color and style settings
-    c_preDBS = 'rgba(255, 215, 0, 0.5)'
-    c_responder = 'rgba(0, 0, 255, 1)'
-    c_nonresponder = 'rgba(255, 185, 0, 1)'
+    c_dict = {
+        'Pre-DBS': 'rgba(255, 215, 0, 0.5)',
+        'Responder': 'rgba(0, 0, 255, 1)',
+        'Non-responder': 'rgba(255, 185, 0, 1)',
+        'Unknown': 'rgba(128, 128, 128, 0.5)',
+        'Disinhibited': 'rgba(255, 0, 0, 1)'
+    }
     c_dots = 'rgba(128, 128, 128, 0.5)'
     c_linAR = 'rgba(51, 160, 44, 1)'
     c_OG = 'rgba(128, 128, 128, 0.7)'
@@ -112,22 +110,25 @@ def plot_metrics(
     ylim_LFP = [-2, 6]
     ylim_R2 = [-49, 90]
     ema_skip = 3
+    hemi_dict = {0: "left", 1: "right"}
+    interp_model = 'SLOvER+'
+
+    df_w_preds.sort_values(by='time_bin', inplace=True)
 
     # Extract relevant data
-    patient_idx = subject
-    days = percept_data['days'][patient_idx][hemisphere]
-    days_OG = days.copy()
-    t = percept_data['time_matrix'][patient_idx][hemisphere]
-    OG = percept_data['LFP_filled_matrix'][patient_idx][hemisphere]
-    linAR = percept_data['linearAR_matrix'][patient_idx][hemisphere]
-    linAR_R2 = percept_data['linearAR_R2'][patient_idx][hemisphere]
+    days = np.unique(df_w_preds['days_since_dbs'].values)
+    t = df_w_preds['time_bin'].values
+    OG = df_w_preds[f'lfp_{hemi_dict[hemisphere]}_z_scored_{interp_model}'].values
+    linAR = df_w_preds[f'lfp_{hemi_dict[hemisphere]}_preds_{interp_model}'].values
+    linAR_R2 = np.unique(df_w_preds[f'lfp_{hemi_dict[hemisphere]}_day_r2_{interp_model}'].values)
+    states = (df_w_preds.drop_duplicates('days_since_dbs'))['state_label'].values
 
     # Identify responder and non-responder indices
     pre_DBS_idx = np.where(days < 0)[0]
     try:
         # Check if the patient has any responder days
-        if len(zone_index['responder'][0]) > 0:
-            first_responder_day = zone_index['responder'][0][0]
+        if 3 in states:
+            first_responder_day = np.where(states == 3)[0]
             responder_start_idx = np.searchsorted(days, first_responder_day, side='left')
             responder_idx = np.arange(responder_start_idx, len(days))
             non_responder_idx = np.where(days >= 0)[0]
@@ -212,17 +213,17 @@ def plot_metrics(
     fig.add_trace(go.Scatter(x=t_zoom, y=OG_zoom, mode='lines', name="Original", line=dict(color=c_OG, width=2), showlegend=True), row=2, col=1)
     fig.add_trace(go.Scatter(x=t_zoom, y=linAR_zoom, mode='lines', name="Linear AR", line=dict(color=c_linAR, width=1.5), showlegend=True), row=2, col=1)
     fig.update_yaxes(title_text="9 Hz LFP Amplitude (mV)", range=ylim_LFP, row=2, col=1, tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
-    fig.update_xaxes(range=pre_DBS_bounds, row=2, col=1, tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
+    fig.update_xaxes(range=[pre_DBS_idx[0], pre_DBS_idx[-1]], row=2, col=1, tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
 
     # Zoomed Post-DBS
     fig.add_trace(go.Scatter(x=t_zoom, y=OG_zoom, mode='lines', name="Original", line=dict(color=c_OG, width=2), showlegend=False), row=2, col=3)
     fig.add_trace(go.Scatter(x=t_zoom, y=linAR_zoom, mode='lines', name="Linear AR", line=dict(color=c_linAR, width=1.5), showlegend=False), row=2, col=3)
     fig.update_yaxes(range=ylim_LFP, row=2, col=3, tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
-    fig.update_xaxes(range=post_DBS_bounds, row=2, col=3, tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
+    fig.update_xaxes(range=[np.where(days > 0)[0], np.where(days > 0)[-1]], row=2, col=3, tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
 
-    linAR_R2_imputed = utils.fill_outliers(linAR_R2)
+    #linAR_R2_imputed = utils.fill_outliers(linAR_R2)
     # Linear AR R² Over Time
-    days_ema_full, linAR_R2_ema_full = _emm_plot(days, linAR_R2_imputed * 100, ema_skip)
+    days_ema_full, linAR_R2_ema_full = _emm_plot(days, linAR_R2 * 100, ema_skip)
     
     for i in range(len(start_index) - 1):
         segment_days = days[start_index[i]+1:start_index[i+1]]
@@ -241,12 +242,12 @@ def plot_metrics(
         
         pre_dbs_mask = np.isin(segment_days, days[pre_DBS_idx])
         if np.any(pre_dbs_mask):
-            sub_segments.append((segment_days[pre_dbs_mask], c_preDBS))
+            sub_segments.append((segment_days[pre_dbs_mask], c_dict['Pre-DBS']))
         
         if len(responder_idx) > 0:
             responder_mask = np.isin(segment_days, days[responder_idx])
             if np.any(responder_mask):
-                sub_segments.append((segment_days[responder_mask], c_responder))
+                sub_segments.append((segment_days[responder_mask], c_dict['Responder']))
             
             dots_mask = (~pre_dbs_mask & ~responder_mask)
             if np.any(dots_mask):
@@ -254,7 +255,7 @@ def plot_metrics(
         else:
             non_responder_mask = ~pre_dbs_mask
             if np.any(non_responder_mask):
-                sub_segments.append((segment_days[non_responder_mask], c_nonresponder))
+                sub_segments.append((segment_days[non_responder_mask], c_dict['Non-responder']))
         
         for sub_segment_days, color in sub_segments:
             ema_mask = np.isin(days_ema_full, sub_segment_days)
@@ -276,11 +277,11 @@ def plot_metrics(
     # Linear AR R² Violin Plot
     VIOLIN_WIDTH = 7.0
     fig.add_trace(go.Violin(
-            y=linAR_R2_imputed[pre_DBS_idx] * 100,
+            y=linAR_R2[pre_DBS_idx] * 100,
             name='', 
             side='negative', 
-            line_color=c_preDBS, 
-            fillcolor=c_preDBS,
+            line_color=c_dict['Pre-DBS'], 
+            fillcolor=c_dict['Pre-DBS'],
             showlegend=False,
             width=VIOLIN_WIDTH,
             meanline_visible=True, 
@@ -289,10 +290,10 @@ def plot_metrics(
 
     if len(responder_idx) > 0:
         fig.add_trace(go.Violin(
-            y=linAR_R2_imputed[non_responder_idx] * 100,  
+            y=linAR_R2[responder_idx] * 100,  
             side='positive', 
-            line_color=c_responder, 
-            fillcolor=c_responder,
+            line_color=c_dict['Responder'], 
+            fillcolor=c_dict['Responder'],
             showlegend=False,
             width=VIOLIN_WIDTH,
             meanline_visible=True, 
@@ -300,10 +301,10 @@ def plot_metrics(
         ), row=3, col=4)
     else:
         fig.add_trace(go.Violin(
-            y=linAR_R2_imputed[non_responder_idx] * 100, 
+            y=linAR_R2[non_responder_idx] * 100, 
             side='positive', 
-            line_color=c_nonresponder, 
-            fillcolor=c_nonresponder,
+            line_color=c_dict['Non-responder'], 
+            fillcolor=c_dict['Non-responder'],
             showlegend=False,
             width=VIOLIN_WIDTH,
             meanline_visible=True, 
