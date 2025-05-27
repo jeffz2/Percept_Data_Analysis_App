@@ -44,11 +44,11 @@ def get_state_labels(pt_df: pd.DataFrame, patient_dict: dict):
 
     if patient_dict['response_status']:
         response_date = (datetime.strptime(patient_dict['response_date'], '%Y-%m-%d').date() - get_dbs_on_date(patient_dict)).days
-        pt_df.loc[pt_df['days_since_dbs'] > response_date, 'state_label'] = 3 # Responder
-        pt_df.loc[pt_df['days_since_dbs'] < response_date, 'state_label_str'] = 'Responder'
+        pt_df.loc[pt_df['days_since_dbs'] >= response_date, 'state_label'] = 3 # Responder
+        pt_df.loc[pt_df['days_since_dbs'] >= response_date, 'state_label_str'] = 'Responder'
     else:
         pt_df.loc[pt_df['days_since_dbs'] > 0, 'state_label'] = 2 # Non-responder
-        pt_df.loc[pt_df['days_since_dbs'] < 0, 'state_label_str'] = 'Non-responder'
+        pt_df.loc[pt_df['days_since_dbs'] > 0, 'state_label_str'] = 'Non-responder'
 
     try:
         disinhibited_dates = patient_dict['disinhibited_dates']

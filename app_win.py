@@ -1,10 +1,10 @@
 import sys
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout,
-    QTextEdit, QProgressBar, QMessageBox, QCheckBox, QComboBox
+    QTextEdit, QProgressBar, QMessageBox, QCheckBox, QComboBox, QToolBar, QMainWindow
 )
-from PySide6.QtGui import QIcon
-from PySide6.QtCore import Qt, QUrl, QTimer
+from PySide6.QtGui import QIcon, QAction
+from PySide6.QtCore import Qt, QUrl, QTimer, QSize
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEngineSettings
@@ -15,7 +15,7 @@ import plotting_utils as plots
 import gui_utils
 import multiprocessing
 import os
-
+from pathlib import Path
 
 try:
     from ctypes import windll
@@ -70,6 +70,10 @@ class MainWindow(QWidget):
         self.layout.addWidget(self.loading_screen)
         self.loading_screen.hide()
 
+        self.help_menu = HelpMenu(self)
+        self.layout.addWidget(self.help_menu)
+        self.help_menu.hide()
+
         self.apply_styles()
 
     def apply_styles(self):
@@ -120,6 +124,7 @@ class MainWindow(QWidget):
     
     def show_help_menu(self):
         self.setGeometry(100, 100, WINDOW_WIDTH, WINDOW_HEIGHT)
+        self.opening_screen.hide()
         self.help_menu.show()
 
     def show_loading_screen(self, param_dict):
@@ -220,7 +225,7 @@ class OpeningScreen(QWidget):
             }
         """)
         self.proceed_button.clicked.connect(self.proceed)
-        self.layout.addWidget(self.proceed_button, alignment=Qt.AlignLeft)
+        self.layout.addWidget(self.proceed_button, alignment=(Qt.AlignHCenter))
 
         self.patient_menu_button = QPushButton("Add Patients", self)
         self.patient_menu_button.setStyleSheet("""
@@ -236,25 +241,28 @@ class OpeningScreen(QWidget):
                 background-color: #1c86ee;
             }
         """)
-        self.patient_menu_button.clicked_connect(self.patient_menu)
-        self.layout.addWidget(self.patient_menu_button, alignment=Qt.AlignRight)
+        
+        self.patient_menu_button.clicked.connect(self.patient_menu)
+        self.layout.addWidget(self.patient_menu_button, alignment=(Qt.AlignHCenter))
 
         def open_url(url):
             """Opens the given URL in the default web browser."""
             qurl = QUrl(url)
             QDesktopServices.openUrl(qurl)
 
-        self.doc_button = QPushButton(self)
-        doc_icon = "doc_icon.png"
-        self.doc_button.setIcon(doc_icon)
-        self.doc_button.clicked_connect(lambda: open_url("https://github.com/jeffz2/Percept_Data_Analysis_App/blob/percept_2025_dev/README.md"))
-        self.layout.addWidget(self.doc_button, alignment=(Qt.AlignLeft | Qt.AlignBottom))
+        toolbar = QToolBar("Main Window Toolbar")
+        toolbar.setIconSize(QSize(16, 16))
+        self.layout.addWidget(toolbar)
 
-        self.help_button = QPushButton(self)
-        help_icon = "help_icon.png"
-        self.help_button.setIcon(help_icon)
-        self.help_button.clicked_connect(self.help_menu)
-        self.layout.addWidget(self.help_button, alignment=(Qt.AlignRight | Qt.AlignBottom))
+        doc_button = QAction(QIcon("doc_icon.png"), "See GitHub Documentation of the app", self)
+        doc_button.setStatusTip("See GitHub Documentation of the app")
+        doc_button.triggered.connect(lambda: open_url("https://github.com/jeffz2/Percept_Data_Analysis_App/blob/percept_2025_dev/README.md"))
+        toolbar.addAction(doc_button)
+
+        help_button = QAction(QIcon("help_icon.png"), "How to use the app", self)
+        help_button.setStatusTip("For a step-by-step guide to use the app")
+        help_button.triggered.connect(self.help_menu)
+        toolbar.addAction(help_button)
 
     def proceed(self):
         self.parent.show_frame1()
@@ -264,6 +272,23 @@ class OpeningScreen(QWidget):
 
     def help_menu(self):
         self.parent.show_help_menu()
+
+class HelpMenu(QWidget):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.layout = QVBoxLayout(self)
+
+        self.label = QLabel("Type helpful stuff here", self)
+        self.label.setStyleSheet("""
+            QLabel {
+                font-size: 16px;
+                font-family: 'Arial', sans-serif;
+                color: #ffffff;
+                padding: 20px;
+            }
+        """)
+
+        self.setLayout(self.layout)
 
 class LoadingScreen(QWidget):
     def __init__(self, parent):

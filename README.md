@@ -78,7 +78,7 @@ Example values for these parameters are provided in `patient_info.json`.
 **Optional Parameters:**
 
 - `window_size`: Window size of data, in days, to train the autoregressive model.
-- `Outlier_fill_method`: Outlier interpolation method used during processing (Naive, Threshold, Overages).
+- `outlier_fill_method`: Outlier interpolation method used during processing (Naive, Threshold, Overages).
 
 These parameters can be adjusted in the app's settings.
 
