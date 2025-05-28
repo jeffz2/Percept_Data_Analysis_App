@@ -1,7 +1,8 @@
 import sys
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout,
-    QTextEdit, QProgressBar, QMessageBox, QCheckBox, QComboBox, QToolBar, QMainWindow
+    QTextEdit, QProgressBar, QMessageBox, QCheckBox, QComboBox, QToolBar, QMainWindow,
+    QTableWidget, QTableWidgetItem, QHeaderView
 )
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtCore import Qt, QUrl, QTimer, QSize
@@ -16,6 +17,7 @@ import gui_utils
 import multiprocessing
 import os
 from pathlib import Path
+import json
 
 try:
     from ctypes import windll
@@ -301,6 +303,13 @@ class HelpMenu(QWidget):
     def initUI(self):
         self.layout = QVBoxLayout(self)
 
+        self.help_label = QLabel(
+            'Write a step-by-step guide to use the app.<br>'
+            'Step 1: Add patients with dbs on date, folder containing the data, and responder status.<br><br>'
+            'Step 2: Do the data processing and see results', self)
+        self.help_label.setAlignment(Qt.AlignCenter)
+        self.layout.addWidget(self.help_label)
+
         self.init_bottom_buttons()
         self.setLayout(self.layout)
 
@@ -320,21 +329,165 @@ class HelpMenu(QWidget):
 class SettingsMenu(QWidget):
     def __init__(self, parent):
         super().__init__(parent)
+
+        self.field_order = [
+            "Window size"
+        ]
+        # TODO: Implement getting param setttings from json to display as default
+        self.fields = {
+            "Window size": 3
+        }
         
+        self.tooltips = self.get_tooltips()
         self.initUI()
 
     def initUI(self):
         self.layout = QVBoxLayout(self)
+        self.entries = {}
+
+        self.create_model_type_checkbox()
+        self.create_field_entries()
 
         self.init_bottom_buttons()
         self.setLayout(self.layout)
+
+    def create_field_entries(self):
+        for key in self.field_order:
+            value = self.fields[key]
+            hbox = QHBoxLayout()
+            label = QLabel(key, self)
+            hbox.addWidget(label)
+
+            if isinstance(value, list):
+                self.create_list_field_entries(key, value, hbox)
+            else:
+                entry = QLineEdit(self)
+                entry.setText(str(value))
+                entry.setToolTip(self.tooltips[key])
+                hbox.addWidget(entry)
+                self.entries[key] = entry
+
+            self.layout.addLayout(hbox)
+
+    def create_list_field_entries(self, key, value, layout):
+        entry1 = QLineEdit(self)
+        entry1.setText(str(value[0]))
+        entry1.setToolTip(self.tooltips[key])
+        layout.addWidget(entry1)
+        self.entries[key] = (entry1)
     
+    def create_model_type_checkbox(self):
+        self.model_label = QLabel("Model Type ", self)
+        self.naive_checkbox = QCheckBox("Naive", self)
+        self.threshold_checkbox = QCheckBox("Threshold", self)
+        self.overage_checkbox = QCheckBox("Overage", self)
+
+        self.naive_checkbox.setToolTip(self.tooltips["naive"])
+        self.threshold_checkbox.setToolTip(self.tooltips["threshold"])
+        self.overage_checkbox.setToolTip(self.tooltips["overage"])
+
+        self.threshold_checkbox.setChecked(True)
+
+        model_layout = QHBoxLayout()
+        model_layout.addWidget(self.model_label)
+        model_layout.addWidget(self.naive_checkbox)
+        model_layout.addSpacing(15)
+        model_layout.addWidget(self.threshold_checkbox)
+        model_layout.addSpacing(15)
+        model_layout.addWidget(self.overage_checkbox)
+        model_layout.addStretch()
+
+        self.layout.addLayout(model_layout)
+
+        self.naive_checkbox.stateChanged.connect(self.model_checkbox_changed)
+        self.threshold_checkbox.stateChanged.connect(self.model_checkbox_changed)
+        self.overage_checkbox.stateChanged.connect(self.model_checkbox_changed)
+
+    def get_tooltips(self):
+        return {
+            "naive": "Naive outlier removal method description",
+            "threshold": "Threshold outlier removal method description",
+            "overage": "Overage outlier removal method description",
+            "Window size": "Window size to train the autoregressive model on"
+        }
+    
+    def model_checkbox_changed(self):
+        if self.sender() == self.naive_checkbox:
+            if self.threshold_checkbox.isChecked() or self.overage_checkbox.isChecked():
+                self.threshold_checkbox.setChecked(False)
+                self.overage_checkbox.setChecked(False)
+            else:
+                self.naive_checkbox.setChecked(True)
+
+        elif self.sender() == self.threshold_checkbox:
+            if self.naive_checkbox.isChecked() or self.overage_checkbox.isChecked():
+                self.naive_checkbox.setChecked(False)
+                self.overage_checkbox.setChecked(False)
+            else:
+                self.threshold_checkbox.setChecked(True)
+
+        elif self.sender() == self.overage_checkbox:
+            if self.threshold_checkbox.isChecked() or self.naive_checkbox.isChecked():
+                self.threshold_checkbox.setChecked(False)
+                self.naive_checkbox.setChecked(False)
+            else:
+                self.overage_checkbox.setChecked(True)
+    
+    def validate_fields(self):
+        if not self.entries['Window size'].text():
+            QMessageBox.warning(self, "Invalid Input", "Window size must be filled in")
+            return False
+        try:
+            tmp = int(self.entries['Window size'].text())
+        except Exception or tmp <= 0:
+            QMessageBox.warning(self, "Invalid Input", "Window size must be an integer > 0")
+            return False
+        if not self.naive_checkbox.isChecked() and not self.threshold_checkbox.isChecked() and not self.overage_checkbox.isChecked():
+            QMessageBox.warning(self, "Invalid Input", "No overage handling method is checked")
+            return False
+        
+        return True
+        
     def go_back(self):
         self.hide()
         self.window().show_opening_screen()
 
     def set_default_settings(self):
-        self.parent.show()
+        self.entries["Window size"].setText("3")
+
+        self.naive_checkbox.setChecked(False)
+        self.threshold_checkbox.setChecked(True)
+        self.overage_checkbox.setChecked(False)
+    
+    def save_settings(self):
+        if not self.validate_fields():
+            return
+        
+        param_dict = {}
+        for key, entry in self.entries.items():
+            if key == "Window size":
+                param_dict[key] = int(entry.text())
+            param_dict[key] = entry.text()
+
+        if self.naive_checkbox.isChecked():
+            param_dict['model'] = "naive"
+        
+        elif self.threshold_checkbox.isChecked():
+            param_dict['model'] = "SLOvER+"
+
+        elif self.overage_checkbox.isChecked():
+            param_dict['model'] = "OvER"
+        
+        try:
+            with open("param.json", 'w') as f:
+                json.dump(param_dict, f, indent=4)
+                f.close()
+        except Exception as e:
+            QMessageBox.critical(self, "Save Error", f"Failed to save settings: {e}")
+            return
+
+        self.hide()
+        self.window().show_opening_screen()
 
     def init_bottom_buttons(self):
         self.button_layout = QHBoxLayout()
@@ -345,48 +498,184 @@ class SettingsMenu(QWidget):
 
         self.default_button = QPushButton("Reset to Default", self)
         self.default_button.clicked.connect(self.set_default_settings)
-        self.button_layout.addWidget(self.default_button, alignment=Qt.AlignRight | Qt.AlignBottom)
+        self.button_layout.addWidget(self.default_button, alignment=Qt.AlignCenter | Qt.AlignBottom)
+
+        self.save_button = QPushButton("Save", self)
+        self.save_button.clicked.connect(self.save_settings)
+        self.button_layout.addWidget(self.save_button, alignment=Qt.AlignRight | Qt.AlignBottom)
 
         self.layout.addLayout(self.button_layout)
 
 class PatientMenu(QWidget):
     def __init__(self, parent):
         super().__init__(parent)
-
+        self.parent = parent
+        self.field_order = [
+            "Patient ID",
+            "Directory",
+            "DBS Date",
+            "Response Status",
+            "Response Date"
+        ]
+        self.tooltips = self.get_tooltips()
         self.initUI()
 
     def initUI(self):
         self.layout = QVBoxLayout(self)
 
+        self.load_patients_table()
         self.init_bottom_buttons()
         self.setLayout(self.layout)
+
+    def load_patients_table(self):
+        self.table = QTableWidget(self)
+        self.table.setColumnCount(len(self.field_order))
+        self.table.setHorizontalHeaderLabels(self.field_order)
+
+        patients = self.load_patient_data()
+        self.table.setRowCount(len(patients))
+
+        for row, patient in enumerate(patients):
+            for col, key in enumerate(self.field_order):
+                self.table.setItem(row, col, QTableWidgetItem(patient.get(key, "")))
+
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.layout.addWidget(self.table)
+
+    def load_patient_data(self):
+        if not os.path.exists("patient_info.json"):
+            return []
+        with open("patient_info.json", 'r') as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return []
 
     def go_back(self):
         self.hide()
         self.window().show_opening_screen()
 
     def add_patient(self):
-        self.hide()
+        self.clear_layout()
+        self.form_entries = {}
+
+        for key in self.field_order:
+            if key == "Response Status":
+                hbox = QHBoxLayout()
+                label = QLabel(key, self)
+                self.response_checkbox = QCheckBox("Yes", self)
+                self.response_checkbox.setToolTip(self.tooltips.get(key, ""))
+                self.response_checkbox.stateChanged.connect(self.toggle_response_date)
+                hbox.addWidget(label)
+                hbox.addWidget(self.response_checkbox)
+                self.layout.addLayout(hbox)
+
+            elif key == "Response Date":
+                self.response_date_layout = QHBoxLayout()
+                self.response_date_label = QLabel(key, self)
+                self.response_date_entry = QLineEdit(self)
+                self.response_date_entry.setToolTip(self.tooltips.get(key, ""))
+                self.response_date_layout.addWidget(self.response_date_label)
+                self.response_date_layout.addWidget(self.response_date_entry)
+                self.layout.addLayout(self.response_date_layout)
+
+                self.response_date_label.hide()
+                self.response_date_entry.hide()
+
+            else:
+                hbox = QHBoxLayout()
+                label = QLabel(key, self)
+                entry = QLineEdit(self)
+                entry.setToolTip(self.tooltips.get(key, ""))
+                self.form_entries[key] = entry
+                hbox.addWidget(label)
+                hbox.addWidget(entry)
+                self.layout.addLayout(hbox)
+
+        self.init_patient_form_buttons()
+    
+    def toggle_response_date(self, state):
+        is_checked = state == Qt.Checked
+        self.response_date_label.setVisible(is_checked)
+        self.response_date_entry.setVisible(is_checked)
+
+    def init_patient_form_buttons(self):
+        button_layout = QHBoxLayout()
+
+        back_button = QPushButton("Back", self)
+        back_button.clicked.connect(self.initUI)
+        button_layout.addWidget(back_button, alignment=Qt.AlignLeft)
+
+        save_button = QPushButton("Save", self)
+        save_button.clicked.connect(self.save_patient_data)
+        button_layout.addWidget(save_button, alignment=Qt.AlignRight)
+
+        self.layout.addLayout(button_layout)
 
     def delete_patient(self):
-        self.hide()
+        selected_rows = self.table.selectionModel().selectedRows()
+        if not selected_rows:
+            QMessageBox.warning(self, "No selection", "Please select a patient row to delete.")
+            return
+
+        patients = self.load_patient_data()
+        for index in sorted(selected_rows, reverse=True):
+            del patients[index.row()]
+
+        with open("patient_info.json", 'w') as f:
+            json.dump(patients, f, indent=4)
+
+        self.initUI()
+
+    def save_patient_data(self):
+       
+        patient = {}
+        for key in self.field_order:
+            if key == "Response Status":
+                patient[key] = "Yes" if self.response_checkbox.isChecked() else "No"
+            elif key == "Response Date":
+                patient[key] = self.response_date_entry.text() if self.response_checkbox.isChecked() else ""
+            else:
+                patient[key] = self.form_entries[key].text()
+
+        if not patient["Patient ID"] or not patient["Directory"]:
+            QMessageBox.warning(self, "Validation Error", "Patient ID and Directory are required.")
+            return
+
+        patients = self.load_patient_data()
+        patients.append(patient)
+
+        with open("patient_info.json", 'a+') as f:
+            json.dump(patients, f, indent=4)
+
+        self.initUI()
 
     def init_bottom_buttons(self):
-        self.button_layout = QHBoxLayout()
+        button_layout = QHBoxLayout()
 
-        self.back_button = QPushButton("Back", self)
-        self.back_button.clicked.connect(self.go_back)
-        self.button_layout.addWidget(self.back_button, alignment=Qt.AlignLeft | Qt.AlignBottom)
+        back_button = QPushButton("Back", self)
+        back_button.clicked.connect(self.go_back)
+        button_layout.addWidget(back_button, alignment=Qt.AlignLeft)
 
-        self.delete_patient_button = QPushButton("Delete patient", self)
-        self.delete_patient_button.clicked.connect(self.delete_patient)
-        self.button_layout.addWidget(self.delete_patient_button, alignment=Qt.AlignCenter | Qt.AlignBottom)
+        delete_button = QPushButton("Delete patient", self)
+        delete_button.clicked.connect(self.delete_patient)
+        button_layout.addWidget(delete_button, alignment=Qt.AlignCenter)
 
-        self.add_patient_button = QPushButton("Add patient", self)
-        self.add_patient_button.clicked.connect(self.add_patient)
-        self.button_layout.addWidget(self.add_patient_button, alignment=Qt.AlignRight | Qt.AlignBottom)
+        add_button = QPushButton("Add patient", self)
+        add_button.clicked.connect(self.add_patient)
+        button_layout.addWidget(add_button, alignment=Qt.AlignRight)
 
-        self.layout.addLayout(self.button_layout)
+        self.layout.addLayout(button_layout)
+
+    def get_tooltips(self):
+        return {
+            "Patient ID": "Unique patient identifier.",
+            "Directory": "Directory where patient data is stored.",
+            "DBS Date": "Initial DBS programming date (MM-DD-YYYY).",
+            "Response Status": "Responder status (Yes/No).",
+            "Response Date": "Date the patient became a responder."
+        }
+
 
 class LoadingScreen(QWidget):
     def __init__(self, parent):
