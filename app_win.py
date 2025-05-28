@@ -28,11 +28,11 @@ WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
 LOADING_SCREEN_INTERVAL = 100  # in milliseconds
 
-def worker_function(pt_name, result_queue):
+def worker_function(patient_dict, result_queue):
     try:
-        raw_df, pt_changes_df, patient_dict = generate_raw.generate_raw(pt_name)
+        raw_df, pt_changes_df = generate_raw.generate_raw(patient_dict['subject_name'], patient_dict)
 
-        processed_data = process_data.process_data(pt_name, raw_df, patient_dict)
+        processed_data = process_data.process_data(patient_dict['subject_name'], raw_df, patient_dict)
 
         df_w_preds = model_data.model_data(processed_data)
 
@@ -70,9 +70,17 @@ class MainWindow(QWidget):
         self.layout.addWidget(self.loading_screen)
         self.loading_screen.hide()
 
+        self.patient_menu = PatientMenu(self)
+        self.layout.addWidget(self.patient_menu)
+        self.patient_menu.hide()
+
         self.help_menu = HelpMenu(self)
         self.layout.addWidget(self.help_menu)
         self.help_menu.hide()
+
+        self.settings_menu = SettingsMenu(self)
+        self.layout.addWidget(self.settings_menu)
+        self.settings_menu.hide()
 
         self.apply_styles()
 
@@ -118,30 +126,15 @@ class MainWindow(QWidget):
         self.opening_screen.hide()
         self.frame1.show()
 
-    def show_patient_menu(self):
-        self.setGeometry(100, 100, WINDOW_WIDTH, WINDOW_HEIGHT)
-        self.patient_menu.show()
-    
-    def show_help_menu(self):
-        self.setGeometry(100, 100, WINDOW_WIDTH, WINDOW_HEIGHT)
-        self.opening_screen.hide()
-        self.help_menu.show()
-
     def show_loading_screen(self, param_dict):
         self.loading_screen.show()
         self.loading_screen.progress_bar.setRange(0, 0)
         self.frame1.hide()
 
-        file_list = gui_utils.open_file_dialog(self)
-
-        if not file_list:
-            self.on_script_finished(None, None)
-            return
-
         self.param_dict = gui_utils.translate_param_dict(param_dict)
         self.worker_process = multiprocessing.Process(
             target=worker_function,
-            args=(self.param_dict, file_list, self.result_queue)
+            args=(self.param_dict, self.result_queue)
         )
         self.worker_process.start()
         self.timer.start(LOADING_SCREEN_INTERVAL)
@@ -173,6 +166,33 @@ class MainWindow(QWidget):
         self.layout.addWidget(self.frame2)
         self.frame1.hide()
         self.frame2.show()
+
+    def show_opening_screen(self):
+        self.opening_screen.show()
+        self.frame1.hide()
+        self.loading_screen.hide()
+        self.hide_all_menus()
+
+    def show_help_menu(self):
+        self.hide_all_menus()
+        self.opening_screen.hide()
+        self.help_menu.show()
+
+    def show_settings_menu(self):
+        self.hide_all_menus()
+        self.opening_screen.hide()
+        self.settings_menu.show()
+
+    def show_patient_menu(self):
+        self.hide_all_menus()
+        self.opening_screen.hide()
+        self.patient_menu.show()
+
+    def hide_all_menus(self):
+        self.help_menu.hide()
+        self.settings_menu.hide()
+        self.patient_menu.hide()
+
 
 class OpeningScreen(QWidget):
     def __init__(self, parent):
@@ -242,7 +262,7 @@ class OpeningScreen(QWidget):
             }
         """)
         
-        self.patient_menu_button.clicked.connect(self.patient_menu)
+        self.patient_menu_button.clicked.connect(self.parent.show_patient_menu)
         self.layout.addWidget(self.patient_menu_button, alignment=(Qt.AlignHCenter))
 
         def open_url(url):
@@ -254,41 +274,119 @@ class OpeningScreen(QWidget):
         toolbar.setIconSize(QSize(16, 16))
         self.layout.addWidget(toolbar)
 
-        doc_button = QAction(QIcon("doc_icon.png"), "See GitHub Documentation of the app", self)
+        doc_button = QAction(QIcon("doc_icon.png"), "See GitHub documentation of the app", self)
         doc_button.setStatusTip("See GitHub Documentation of the app")
         doc_button.triggered.connect(lambda: open_url("https://github.com/jeffz2/Percept_Data_Analysis_App/blob/percept_2025_dev/README.md"))
         toolbar.addAction(doc_button)
 
         help_button = QAction(QIcon("help_icon.png"), "How to use the app", self)
         help_button.setStatusTip("For a step-by-step guide to use the app")
-        help_button.triggered.connect(self.help_menu)
+        help_button.triggered.connect(self.parent.show_help_menu)
         toolbar.addAction(help_button)
+
+        settings_button = QAction(QIcon("settings_icon.png"), "Processing settings", self)
+        settings_button.setStatusTip("Processing settings")
+        settings_button.triggered.connect(self.parent.show_settings_menu)
+        toolbar.addAction(settings_button)
 
     def proceed(self):
         self.parent.show_frame1()
 
-    def patient_menu(self):
-        self.parent.show_patient_menu()
-
-    def help_menu(self):
-        self.parent.show_help_menu()
-
 class HelpMenu(QWidget):
     def __init__(self, parent):
         super().__init__(parent)
+        
+        self.initUI()
+
+    def initUI(self):
         self.layout = QVBoxLayout(self)
 
-        self.label = QLabel("Type helpful stuff here", self)
-        self.label.setStyleSheet("""
-            QLabel {
-                font-size: 16px;
-                font-family: 'Arial', sans-serif;
-                color: #ffffff;
-                padding: 20px;
-            }
-        """)
-
+        self.init_bottom_buttons()
         self.setLayout(self.layout)
+
+    def go_back(self):
+        self.hide()
+        self.window().show_opening_screen()
+
+    def init_bottom_buttons(self):
+        self.button_layout = QHBoxLayout()
+
+        self.back_button = QPushButton("Back", self)
+        self.back_button.clicked.connect(self.go_back)
+        self.button_layout.addWidget(self.back_button, alignment=Qt.AlignLeft | Qt.AlignBottom)
+
+        self.layout.addLayout(self.button_layout)
+
+class SettingsMenu(QWidget):
+    def __init__(self, parent):
+        super().__init__(parent)
+        
+        self.initUI()
+
+    def initUI(self):
+        self.layout = QVBoxLayout(self)
+
+        self.init_bottom_buttons()
+        self.setLayout(self.layout)
+    
+    def go_back(self):
+        self.hide()
+        self.window().show_opening_screen()
+
+    def set_default_settings(self):
+        self.parent.show()
+
+    def init_bottom_buttons(self):
+        self.button_layout = QHBoxLayout()
+
+        self.back_button = QPushButton("Back", self)
+        self.back_button.clicked.connect(self.go_back)
+        self.button_layout.addWidget(self.back_button, alignment=Qt.AlignLeft | Qt.AlignBottom)
+
+        self.default_button = QPushButton("Reset to Default", self)
+        self.default_button.clicked.connect(self.set_default_settings)
+        self.button_layout.addWidget(self.default_button, alignment=Qt.AlignRight | Qt.AlignBottom)
+
+        self.layout.addLayout(self.button_layout)
+
+class PatientMenu(QWidget):
+    def __init__(self, parent):
+        super().__init__(parent)
+
+        self.initUI()
+
+    def initUI(self):
+        self.layout = QVBoxLayout(self)
+
+        self.init_bottom_buttons()
+        self.setLayout(self.layout)
+
+    def go_back(self):
+        self.hide()
+        self.window().show_opening_screen()
+
+    def add_patient(self):
+        self.hide()
+
+    def delete_patient(self):
+        self.hide()
+
+    def init_bottom_buttons(self):
+        self.button_layout = QHBoxLayout()
+
+        self.back_button = QPushButton("Back", self)
+        self.back_button.clicked.connect(self.go_back)
+        self.button_layout.addWidget(self.back_button, alignment=Qt.AlignLeft | Qt.AlignBottom)
+
+        self.delete_patient_button = QPushButton("Delete patient", self)
+        self.delete_patient_button.clicked.connect(self.delete_patient)
+        self.button_layout.addWidget(self.delete_patient_button, alignment=Qt.AlignCenter | Qt.AlignBottom)
+
+        self.add_patient_button = QPushButton("Add patient", self)
+        self.add_patient_button.clicked.connect(self.add_patient)
+        self.button_layout.addWidget(self.add_patient_button, alignment=Qt.AlignRight | Qt.AlignBottom)
+
+        self.layout.addLayout(self.button_layout)
 
 class LoadingScreen(QWidget):
     def __init__(self, parent):
@@ -487,13 +585,30 @@ class Frame1(QWidget):
         self.layout.setSpacing(5)
         self.entries = {}
 
+        # Main content
         self.create_field_entries()
         self.create_responder_checkbox()
         self.create_responder_date_entry()
 
+        # Bottom buttons
+        self.init_bottom_buttons()
+
+    def go_back(self):
+        self.hide()
+        self.window().show_opening_screen()
+
+    def init_bottom_buttons(self):
+        self.button_layout = QHBoxLayout()
+
+        self.back_button = QPushButton("Back", self)
+        self.back_button.clicked.connect(self.go_back)
+        self.button_layout.addWidget(self.back_button, alignment=Qt.AlignLeft)
+
         self.save_button = QPushButton("Save and Continue", self)
-        self.layout.addWidget(self.save_button)
         self.save_button.clicked.connect(self.save_data)
+        self.button_layout.addWidget(self.save_button, alignment=Qt.AlignRight)
+
+        self.layout.addLayout(self.button_layout)
 
     def get_initial_fields(self):
         return {

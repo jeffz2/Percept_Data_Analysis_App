@@ -7,16 +7,7 @@ from zoneinfo import ZoneInfo
 import json_utils
 
 
-def generate_raw(pt_name: str):
-
-    # Setup processing parameters
-    with open('patient_info.json') as f:
-        try:
-            patient_info = json.load(f)
-        except json.JSONDecodeError as e:
-            print(e)
-            return json.JSONDecodeError
-    patient_dict = patient_info[pt_name]
+def generate_raw(pt_name: str, patient_dict: dict):
 
     # Read json files from provided directory
 
@@ -76,4 +67,4 @@ def generate_raw(pt_name: str):
     raw_df['lead_model'] = raw_df['left_lead_model'].where(raw_df['left_lead_model'] == raw_df['right_lead_model'], None)
     raw_df.drop(columns=['left_lead_model', 'right_lead_model'], inplace=True)
 
-    return raw_df, pt_changes_df, patient_dict
+    return raw_df, pt_changes_df
