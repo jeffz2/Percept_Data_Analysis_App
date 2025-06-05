@@ -8,17 +8,15 @@ The Percept Desktop App is designed to provide an intuitive user interface for r
 
 ### Key Fields
 
-- `Initial_DBS_programming_date`: The date the DBS treatment started, entered in the format MM-DD-YYYY.
 - `Subject_name`: The codename used to track a specific patient (e.g., '009').
-- `Pre_DBS_example_days`: Enter two dates before DBS treatment to see the interval plotted, in the format MM-DD-YYYY, MM-DD-YYYY.
-- `Post_DBS_example_days`: Enter two dates after DBS treatment to see the interval plotted, in the format MM-DD-YYYY, MM-DD-YYYY.
+- `Initial DBS programming date`: The date the DBS treatment started, entered in the format YYYY-MM-DD.
 - `Responder`: Indicates whether the subject has achieved clinical response as noted by YBOCS criteria (e.g., 'yes' or 'no').
-- `Responder_date`: If 'yes' was selected for Responder, provide the date when the patient reached clinical response in the format MM-DD-YYYY.
+- `Responder_date`: If 'yes' was selected for Responder, provide the date when the patient reached clinical response in the format YYYY-MM-DD or the # of days after the initial DBS programming date.
 
 ### Features
 - **Plot Metrics**: Displays various physiological and linear AR model metrics. More information can be found in the original paper linked above.
-- **Download Plot**: The app can download plots as a variety of different files formats using the "Download Plot" button.
-- **Export Data**: The raw linear-AR R2 values can be exported variety of different files formats using the “export linAR button”.
+- **Download Plot**: The app can download plots as a variety of different file formats using the "Download Plot" button.
+- **Export Data**: The raw linear-AR R2 values can be exported variety of different file formats using the “export linAR button”.
 
 ### Data Export Guide
 
@@ -68,10 +66,11 @@ To run the Core Analysis Pipeline, users must specify certain hyperparameters, d
 **Required Parameters:**
 
 - `subject_name`: A codename for tracking a specific patient (e.g., '009').
-- `directory`: A string corresponding to the path of the directory with the subject's json files.
-- `dbs_date`: The start date of DBS treatment, in the format MM-DD-YYYY.
+- `directory`: A string corresponding to the path of the directory with the subject's JSON files.
+- `dbs_date`: The start date of DBS treatment, in the format YYYY-MM-DD.
 - `response_status`: The response status of the patient if known.
-- `response_date`: The response date of the patient, if applicable, in MM-DD-YYYY format.
+- `response_date`: The response date of the patient, if applicable, in YYYY-MM-DD format or enter the # of days after DBS activation.
+- `disinhibited_dates`: The disinhibited dates of the patient, if applicable, in [start date, end date] format with dates in YYYY-MM-DD format, or enter the # of days after DBS activation
 
 Example values for these parameters are provided in `patient_info.json`.
 
@@ -80,7 +79,7 @@ Example values for these parameters are provided in `patient_info.json`.
 - `window_size`: Window size of data, in days, to train the autoregressive model.
 - `outlier_fill_method`: Outlier interpolation method used during processing (Naive, Threshold, Overages).
 
-These parameters can be adjusted in the app's settings.
+These parameters can be adjusted in the app's settings menu.
 
 #### Running the Core Analysis Pipeline
 
