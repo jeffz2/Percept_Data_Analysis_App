@@ -2,7 +2,7 @@ import sys
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout,
     QTextEdit, QProgressBar, QMessageBox, QCheckBox, QComboBox, QToolBar, QMainWindow,
-    QTableWidget, QTableWidgetItem, QHeaderView
+    QTableWidget, QTableWidgetItem, QHeaderView, QDialog
 )
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtCore import Qt, QUrl, QTimer, QSize
@@ -512,40 +512,56 @@ class PatientMenu(QWidget):
         self.parent = parent
         self.field_order = [
             "Patient ID",
-            "Directory",
-            "DBS Date",
-            "Response Status",
-            "Response Date"
+            "directory",
+            "dbs_date",
+            "response_status",
+            "response_date",
+            "disinhibited_dates"
         ]
         self.tooltips = self.get_tooltips()
         self.initUI()
 
     def initUI(self):
-        self.layout = QVBoxLayout(self)
+        self.main_layout = QVBoxLayout(self)
+
+        self.table_layout = QVBoxLayout()
+        self.main_layout.addLayout(self.table_layout)
 
         self.load_patients_table()
         self.init_bottom_buttons()
-        self.setLayout(self.layout)
+
+        self.setLayout(self.main_layout)
 
     def load_patients_table(self):
         self.table = QTableWidget(self)
-        self.table.setColumnCount(len(self.field_order))
-        self.table.setHorizontalHeaderLabels(self.field_order)
+
+        display_fields = ["Patient ID", "Directory", "Response Status"]
+        display_keys = {"Directory": "directory", "Response Status": "response_status"}
+        display_response = {0: "Non-responder", 1: "Responder"}
+        self.table.setColumnCount(len(display_fields))
+        self.table.setHorizontalHeaderLabels(display_fields)
 
         patients = self.load_patient_data()
         self.table.setRowCount(len(patients))
 
-        for row, patient in enumerate(patients):
-            for col, key in enumerate(self.field_order):
-                self.table.setItem(row, col, QTableWidgetItem(patient.get(key, "")))
+        for row, patient in enumerate(patients.keys()):
+            for col, key in enumerate(display_fields):
+                if key == "Patient ID":
+                    self.table.setItem(row, col, QTableWidgetItem(patient))
+                elif key == "Response Status":
+                    response_status = display_response[patients[patient][display_keys[key]]]
+                    self.table.setItem(row, col, QTableWidgetItem(response_status))
+                else:
+                    self.table.setItem(row, col, QTableWidgetItem(patients[patient][display_keys[key]]))
 
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.layout.addWidget(self.table)
+        self.table_layout.addWidget(self.table)
+
 
     def load_patient_data(self):
-        if not os.path.exists("patient_info.json"):
+        if not os.path.exists("ocd_patient_info.json"):
             return []
-        with open("patient_info.json", 'r') as f:
+        with open("ocd_patient_info.json", 'r') as f:
             try:
                 return json.load(f)
             except json.JSONDecodeError:
@@ -555,100 +571,144 @@ class PatientMenu(QWidget):
         self.hide()
         self.window().show_opening_screen()
 
+    def refresh_table(self):
+        # Remove existing table from layout
+        if hasattr(self, 'table'):
+            self.table_layout.removeWidget(self.table)
+            self.table.deleteLater()
+            self.table = None
+
+        self.load_patients_table()
+
+
     def add_patient(self):
-        self.clear_layout()
-        self.form_entries = {}
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Add Patient")
+        layout = QVBoxLayout(dialog)
+
+        form_entries = {}
+
+        key_labels = {"Patient ID": "Patient ID",
+                      "directory": "Directory",
+                      "dbs_date": "DBS Date",
+                      "response_status": "Response Status",
+                      "response_date": "Response Date",
+                      "disinhibited_dates": "Disinhibited Dates"}
 
         for key in self.field_order:
-            if key == "Response Status":
+            if key == "response_status":
                 hbox = QHBoxLayout()
-                label = QLabel(key, self)
-                self.response_checkbox = QCheckBox("Yes", self)
-                self.response_checkbox.setToolTip(self.tooltips.get(key, ""))
-                self.response_checkbox.stateChanged.connect(self.toggle_response_date)
+                label = QLabel(key_labels[key])
+                response_checkbox = QCheckBox("Yes")
                 hbox.addWidget(label)
-                hbox.addWidget(self.response_checkbox)
-                self.layout.addLayout(hbox)
-
-            elif key == "Response Date":
-                self.response_date_layout = QHBoxLayout()
-                self.response_date_label = QLabel(key, self)
-                self.response_date_entry = QLineEdit(self)
-                self.response_date_entry.setToolTip(self.tooltips.get(key, ""))
-                self.response_date_layout.addWidget(self.response_date_label)
-                self.response_date_layout.addWidget(self.response_date_entry)
-                self.layout.addLayout(self.response_date_layout)
-
-                self.response_date_label.hide()
-                self.response_date_entry.hide()
-
+                hbox.addWidget(response_checkbox)
+                layout.addLayout(hbox)
+            elif key == "response_date":
+                response_date_layout = QHBoxLayout()
+                response_date_label = QLabel(key_labels[key])
+                response_date_entry = QLineEdit()
+                response_date_layout.addWidget(response_date_label)
+                response_date_layout.addWidget(response_date_entry)
+                layout.addLayout(response_date_layout)
+                # Hide initially
+                response_date_label.hide()
+                response_date_entry.hide()
             else:
                 hbox = QHBoxLayout()
-                label = QLabel(key, self)
-                entry = QLineEdit(self)
-                entry.setToolTip(self.tooltips.get(key, ""))
-                self.form_entries[key] = entry
+                label = QLabel(key_labels[key])
+                entry = QLineEdit()
                 hbox.addWidget(label)
                 hbox.addWidget(entry)
-                self.layout.addLayout(hbox)
+                layout.addLayout(hbox)
+                form_entries[key] = entry
 
-        self.init_patient_form_buttons()
-    
-    def toggle_response_date(self, state):
-        is_checked = state == Qt.Checked
-        self.response_date_label.setVisible(is_checked)
-        self.response_date_entry.setVisible(is_checked)
+        def toggle_response_date(state):
+            is_checked = state == Qt.Checked
+            response_date_label.setVisible(is_checked)
+            response_date_entry.setVisible(is_checked)
 
-    def init_patient_form_buttons(self):
+        response_checkbox.stateChanged.connect(toggle_response_date)
+
+        def save_and_close():
+            pt_dict = {}
+            patient = form_entries["Patient ID"].text()
+            pt_dict[patient] = {}
+            for key in self.field_order:
+                if key == "Patient ID":
+                    continue
+                if key == "response_status":
+                    pt_dict[patient][key] = 1 if response_checkbox.isChecked() else 0
+                elif key == "response_date":
+                    if response_checkbox.isChecked():
+                        pt_dict[patient][key] = response_date_entry.text()
+                else:
+                    if form_entries[key].text() == "":
+                        continue
+                    pt_dict[patient][key] = form_entries[key].text()
+
+            if not pt_dict[patient] or not pt_dict[patient]["directory"]:
+                QMessageBox.warning(dialog, "Validation Error", "Patient ID and Directory are required.")
+                return
+
+            patients = self.load_patient_data()
+            patients.update(pt_dict)
+
+            with open("ocd_patient_info.json", 'w') as f:
+                json.dump(patients, f, indent=4)
+
+            dialog.accept()
+            self.refresh_table()
+
         button_layout = QHBoxLayout()
+        save_button = QPushButton("Save")
+        save_button.clicked.connect(save_and_close)
+        cancel_button = QPushButton("Cancel")
+        cancel_button.clicked.connect(dialog.reject)
+        button_layout.addWidget(cancel_button)
+        button_layout.addWidget(save_button)
+        layout.addLayout(button_layout)
 
-        back_button = QPushButton("Back", self)
-        back_button.clicked.connect(self.initUI)
-        button_layout.addWidget(back_button, alignment=Qt.AlignLeft)
-
-        save_button = QPushButton("Save", self)
-        save_button.clicked.connect(self.save_patient_data)
-        button_layout.addWidget(save_button, alignment=Qt.AlignRight)
-
-        self.layout.addLayout(button_layout)
+        dialog.exec()
 
     def delete_patient(self):
-        selected_rows = self.table.selectionModel().selectedRows()
-        if not selected_rows:
-            QMessageBox.warning(self, "No selection", "Please select a patient row to delete.")
-            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Delete Patient")
+        layout = QVBoxLayout(dialog)
 
-        patients = self.load_patient_data()
-        for index in sorted(selected_rows, reverse=True):
-            del patients[index.row()]
+        layout.addWidget(QLabel("Enter Patient ID to delete:"))
+        patient_id_entry = QLineEdit()
+        layout.addWidget(patient_id_entry)
 
-        with open("patient_info.json", 'w') as f:
-            json.dump(patients, f, indent=4)
+        def delete_and_close():
+            patient_id = patient_id_entry.text().strip()
+            if not patient_id:
+                QMessageBox.warning(dialog, "Input Error", "Please enter a Patient ID.")
+                return
 
-        self.initUI()
+            patients = self.load_patient_data()
+            
+            if patient_id not in patients.keys():
+                QMessageBox.warning(dialog, "Not Found", f"No patient found with ID: {patient_id}")
+                return
 
-    def save_patient_data(self):
-       
-        patient = {}
-        for key in self.field_order:
-            if key == "Response Status":
-                patient[key] = "Yes" if self.response_checkbox.isChecked() else "No"
-            elif key == "Response Date":
-                patient[key] = self.response_date_entry.text() if self.response_checkbox.isChecked() else ""
-            else:
-                patient[key] = self.form_entries[key].text()
+            del patients[patient_id]
+            with open("ocd_patient_info.json", 'w') as f:
+                json.dump(patients, f, indent=4)
 
-        if not patient["Patient ID"] or not patient["Directory"]:
-            QMessageBox.warning(self, "Validation Error", "Patient ID and Directory are required.")
-            return
+            dialog.accept()
+            self.refresh_table()
 
-        patients = self.load_patient_data()
-        patients.append(patient)
+        button_layout = QHBoxLayout()
+        cancel_button = QPushButton("Cancel")
+        cancel_button.clicked.connect(dialog.reject)
+        delete_button = QPushButton("Delete")
+        delete_button.clicked.connect(delete_and_close)
+        button_layout.addWidget(cancel_button)
+        button_layout.addWidget(delete_button)
 
-        with open("patient_info.json", 'a+') as f:
-            json.dump(patients, f, indent=4)
+        layout.addLayout(button_layout)
 
-        self.initUI()
+        dialog.exec()
 
     def init_bottom_buttons(self):
         button_layout = QHBoxLayout()
@@ -665,15 +725,16 @@ class PatientMenu(QWidget):
         add_button.clicked.connect(self.add_patient)
         button_layout.addWidget(add_button, alignment=Qt.AlignRight)
 
-        self.layout.addLayout(button_layout)
+        self.main_layout.addLayout(button_layout)
 
     def get_tooltips(self):
         return {
             "Patient ID": "Unique patient identifier.",
             "Directory": "Directory where patient data is stored.",
-            "DBS Date": "Initial DBS programming date (MM-DD-YYYY).",
+            "DBS Date": "Initial DBS programming date (YYYY-MM-DD).",
             "Response Status": "Responder status (Yes/No).",
-            "Response Date": "Date the patient became a responder."
+            "Response Date": "Date the patient became a responder (Enter YYYY-MM-DD format or day after DBS activation patient achieved response).",
+            "Disinhibited Dates": "Dates the patient was disinhibited in [start date, end date] format (Enter dates in YYYY-MM-DD format or day after DBS activation patient was disinhibited)."
         }
 
 

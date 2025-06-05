@@ -3,7 +3,7 @@ import numpy as np
 import model_utils
 
 def model_data(df: pd.DataFrame, window_size=3, causal=True, use_constant=False):
-    feature_names = ['SLOvER+']
+    feature_names = ['OvER']
     hemis = ['left', 'right']
     df_w_preds = df.copy()
 

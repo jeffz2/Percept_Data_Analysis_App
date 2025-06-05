@@ -15,6 +15,7 @@ def get_dbs_on_date(pt_data):
     Returns:
     - dbs_on_date (datetime.date): DBS on date in the datetime.date type.
     """
+
     return datetime.strptime(pt_data['dbs_date'], '%Y-%m-%d').date()
 
 def get_state_labels(pt_df: pd.DataFrame, patient_dict: dict):
@@ -43,22 +44,26 @@ def get_state_labels(pt_df: pd.DataFrame, patient_dict: dict):
     pt_df.loc[pt_df['days_since_dbs'] < 0, 'state_label_str'] = 'Pre-DBS' # pre-DBS
 
     if patient_dict['response_status']:
-        response_date = (datetime.strptime(patient_dict['response_date'], '%Y-%m-%d').date() - get_dbs_on_date(patient_dict)).days
+        if type(patient_dict['response_date']) != int:
+            response_date = (datetime.strptime(patient_dict['response_date'], '%Y-%m-%d').date() - get_dbs_on_date(patient_dict)).days
+        else:
+            response_date = patient_dict['response_date']
         pt_df.loc[pt_df['days_since_dbs'] >= response_date, 'state_label'] = 3 # Responder
         pt_df.loc[pt_df['days_since_dbs'] >= response_date, 'state_label_str'] = 'Responder'
     else:
-        pt_df.loc[pt_df['days_since_dbs'] > 0, 'state_label'] = 2 # Non-responder
-        pt_df.loc[pt_df['days_since_dbs'] > 0, 'state_label_str'] = 'Non-responder'
+        pt_df.loc[pt_df['days_since_dbs'] >= 0, 'state_label'] = 2 # Non-responder
+        pt_df.loc[pt_df['days_since_dbs'] >= 0, 'state_label_str'] = 'Non-responder'
 
     try:
         disinhibited_dates = patient_dict['disinhibited_dates']
         for i, date in enumerate(disinhibited_dates):
-            date = datetime.strptime(date, '%Y-%m-%d').date()
-            date = (date - get_dbs_on_date(patient_dict)).days
-            disinhibited_dates[i] = date
+            if type(date) != int:
+                date = datetime.strptime(date, '%Y-%m-%d').date()
+                date = (date - get_dbs_on_date(patient_dict)).days
+                disinhibited_dates[i] = date
 
-        pt_df.loc[(pt_df['days_since_dbs'] >= disinhibited_dates[0]) & (pt_df['days_since_dbs'] <= disinhibited_dates[1]), 'state_label'] = 1 # Disinhibited
-        pt_df.loc[(pt_df['days_since_dbs'] >= disinhibited_dates[0]) & (pt_df['days_since_dbs'] <= disinhibited_dates[1]), 'state_label_str'] = 'Disinhibited'
+        pt_df.loc[((pt_df['days_since_dbs'] >= disinhibited_dates[0]) & (pt_df['days_since_dbs'] <= disinhibited_dates[1])), 'state_label'] = 1 # Disinhibited
+        pt_df.loc[((pt_df['days_since_dbs'] >= disinhibited_dates[0]) & (pt_df['days_since_dbs'] <= disinhibited_dates[1])), 'state_label_str'] = 'Disinhibited'
     except Exception:
         pass
 

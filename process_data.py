@@ -50,7 +50,7 @@ def process_data(pt_name: str, raw_data: pd.DataFrame, patient_dict: dict):
 
     # Fix overvoltages and fill in holes in data using the specified method(s).
     # Adjust outlier filling methods as necessary
-    name = 'SLOvER+' 
+    name = 'OvER' 
     
     func = outlier_fill_methods[name]
     col_dict = {'lfp_left_outliers_filled': f'lfp_left_outliers_filled_{name}', 
@@ -90,8 +90,15 @@ def process_data(pt_name: str, raw_data: pd.DataFrame, patient_dict: dict):
     groups_right = processed_data.groupby(['lead_location', 'contig_right'], group_keys=False)
     for i, name in enumerate(zscored_cols):
         if i == 0:
-            processed_data = processed_data.join(groups_left.apply(lambda g: pd.DataFrame({f'{name}_lag_1': g[name].shift(periods=1)}), include_groups=False), how='left')
-        else:   processed_data = processed_data.join(groups_right.apply(lambda g: pd.DataFrame({f'{name}_lag_1': g[name].shift(periods=1)}), include_groups=False), how='left')
+            join_df = groups_left.apply(lambda g: pd.DataFrame({f'{name}_lag_1': g[name].shift(periods=1)}), include_groups=False)
+            if join_df.empty:
+                processed_data[f'{name}_lag_1'] = np.nan
+            else:   processed_data = processed_data.join(join_df, how='left')
+        else:
+            join_df = groups_right.apply(lambda g: pd.DataFrame({f'{name}_lag_1': g[name].shift(periods=1)}), include_groups=False)
+            if join_df.empty:
+                processed_data[f'{name}_lag_1'] = np.nan
+            else:   processed_data = processed_data.join(join_df, how='left')
 
     state_labels = state_utils.get_state_labels(processed_data, patient_dict)
     processed_data = processed_data.drop(columns=state_labels.columns, errors='ignore').join(state_labels)
@@ -112,7 +119,7 @@ def process_data(pt_name: str, raw_data: pd.DataFrame, patient_dict: dict):
     vcvs_df = processed_data.query('lead_location == "VC/VS"')
     left_outliers = vcvs_df['is_outlier_left'].sum() / vcvs_df['is_outlier_left'].count() * 100
     right_outliers = vcvs_df['is_outlier_right'].sum() / vcvs_df['is_outlier_right'].count() * 100
-    print(f'{pt_name} Left Outlier %: {left_outliers}')
-    print(f'{pt_name} Right Outlier %: {right_outliers}')
+    #print(f'{pt_name} Left Outlier %: {left_outliers}')
+    #print(f'{pt_name} Right Outlier %: {right_outliers}')
 
     return processed_data
