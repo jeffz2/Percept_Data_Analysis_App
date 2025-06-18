@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import utils
+import json
 
 def _weighted_median(values: np.ndarray, weights: np.ndarray) -> float:
     """
@@ -79,24 +80,20 @@ def _ema_plot(days: np.ndarray, stat: np.ndarray, ema_skip: int) -> tuple[np.nda
     return days[skip_idx:], ema[skip_idx:]
 
 def plot_metrics(
-    percept_data: dict, 
-    subject: str, 
+    df: pd.DataFrame, 
+    patient: str, 
     hemisphere: int, 
-    pre_DBS_bounds: tuple[int, int], 
-    post_DBS_bounds: tuple[int, int], 
-    zone_index: dict
+    changes_df: pd.DataFrame
 ) -> go.Figure:
     """
     Generate a plot with multiple subplots to visualize various metrics including LFP amplitude, linear AR model,
     and R² values over time, before and after DBS.
 
     Parameters:
-        percept_data (dict): Dictionary containing processed percept data.
-        subject (str): Subject identifier.
+        df (pd.Dataframe): Dataframe containing processed percept data.
+        patient (str): Patient identifier.
         hemisphere (int): Hemisphere index (0 or 1).
-        pre_DBS_bounds (tuple[int, int]): X-axis bounds for the pre-DBS zoomed plot.
-        post_DBS_bounds (tuple[int, int]): X-axis bounds for the post-DBS zoomed plot.
-        zone_index (dict): Dictionary containing responder and non-responder indices for each subject.
+        changes_df (pd.Dataframe): Dataframe containing stimulation parameters and changes.
 
     Returns:
         go.Figure: A Plotly figure with the generated subplots.
@@ -113,30 +110,37 @@ def plot_metrics(
     ylim_R2 = [-49, 90]
     ema_skip = 3
 
+    # Load param settings
+    with open('param.json', 'r') as f:
+        param_dict = json.load(f)
+    
+    model = param_dict['model']
+    hemisphere = 'left' if param_dict['hemisphere'] == 0 else 'right'
+
     # Extract relevant data
-    patient_idx = subject
-    days = percept_data['days'][patient_idx][hemisphere]
-    days_OG = days.copy()
-    t = percept_data['time_matrix'][patient_idx][hemisphere]
-    OG = percept_data['LFP_filled_matrix'][patient_idx][hemisphere]
-    linAR = percept_data['linearAR_matrix'][patient_idx][hemisphere]
-    linAR_R2 = percept_data['linearAR_R2'][patient_idx][hemisphere]
+    pt_df = df.query('pt_id == @patient')
+    days = pt_df.groupby('days_since_dbs').head(1)['days_since_dbs']
+    t = pt_df['CT_timestamp']
+    OG = pt_df[f'lfp_{hemisphere}_filled_{model}']
+    linAR = pt_df[f'lfp_{hemisphere}_preds_{model}']
+    res = pt_df[f'lfp_{hemisphere}_residuals_{model}']
+    linAR_R2 = pt_df.groupby('days_since_dbs').head(1)[f'lfp_{hemisphere}_day_r2_{model}']
+    state_labels = pt_df.groupby('days_since_dbs').head(1)['state_label']
 
     # Identify responder and non-responder indices
     pre_DBS_idx = np.where(days < 0)[0]
-    try:
-        # Check if the patient has any responder days
-        if len(zone_index['responder'][0]) > 0:
-            first_responder_day = zone_index['responder'][0][0]
-            responder_start_idx = np.searchsorted(days, first_responder_day, side='left')
-            responder_idx = np.arange(responder_start_idx, len(days))
-            non_responder_idx = np.where(days >= 0)[0]
-        else:
-            responder_idx = np.asarray([], dtype=int)
-            non_responder_idx = np.where(days >= 0)[0]     
-    except:
-        responder_idx = np.asarray([], dtype=int)
-        non_responder_idx = np.asarray([], dtype=int)
+    
+    # Responder indices
+    if 3 in pt_df['state_label']:
+        responder_idx = np.where(state_labels == 3)[0]
+        unknown_idx = np.where(state_labels == 4)[0]
+    # Non-responder indices
+    else:
+        non_responder_idx = np.where(state_labels == 2)[0]
+
+    # Hypomanic indices
+    if 1 in pt_df['state_label']:
+        hypomanic_idx = np.where(state_labels == 1)[0]
 
     # Identify discontinuities in the days array
     start_index = np.where(np.diff(days) > 7)[0] + 1
@@ -208,11 +212,21 @@ def plot_metrics(
     OG_zoom = np.ravel(OG, order='F')[~np.isnan(np.ravel(OG, order='F'))]
     linAR_zoom = np.ravel(linAR, order='F')[~np.isnan(np.ravel(linAR, order='F'))]
     
+    if len(pre_DBS_idx < 10):
+        pre_DBS_bounds = [pre_DBS_idx[0], pre_DBS_idx[-1]]
+    else:
+        pre_DBS_bounds = [pre_DBS_idx[0], pre_DBS_idx[10]]
+
     # Zoomed Pre-DBS
     fig.add_trace(go.Scatter(x=t_zoom, y=OG_zoom, mode='lines', name="Original", line=dict(color=c_OG, width=2), showlegend=True), row=2, col=1)
     fig.add_trace(go.Scatter(x=t_zoom, y=linAR_zoom, mode='lines', name="Linear AR", line=dict(color=c_linAR, width=1.5), showlegend=True), row=2, col=1)
     fig.update_yaxes(title_text="9 Hz LFP Amplitude (mV)", range=ylim_LFP, row=2, col=1, tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
     fig.update_xaxes(range=pre_DBS_bounds, row=2, col=1, tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
+
+    if len(np.where(days > 0)[0]) < 10:
+        post_DBS_bounds = [0, np.where(days > 0)[0][-1]]
+    else:
+        pre_DBS_bounds = [0, 10]
 
     # Zoomed Post-DBS
     fig.add_trace(go.Scatter(x=t_zoom, y=OG_zoom, mode='lines', name="Original", line=dict(color=c_OG, width=2), showlegend=False), row=2, col=3)

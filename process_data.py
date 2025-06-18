@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 from datetime import time as dttime
 from datetime import timedelta, datetime, date
 import state_utils
+import json
 
 central_time = ZoneInfo('America/Chicago')
 def process_data(pt_name: str, raw_data: pd.DataFrame, patient_dict: dict):
@@ -50,7 +51,9 @@ def process_data(pt_name: str, raw_data: pd.DataFrame, patient_dict: dict):
 
     # Fix overvoltages and fill in holes in data using the specified method(s).
     # Adjust outlier filling methods as necessary
-    name = 'OvER' 
+    with open('param.json', 'r') as f:
+        param_dict = json.load(f)
+    name = param_dict['model'] 
     
     func = outlier_fill_methods[name]
     col_dict = {'lfp_left_outliers_filled': f'lfp_left_outliers_filled_{name}', 

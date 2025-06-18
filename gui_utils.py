@@ -5,7 +5,7 @@ import plotly.io as pio
 import tempfile
 from PySide6.QtWidgets import QFileDialog
 
-DATE_FORMAT = '%m-%d-%Y'
+DATE_FORMAT = '%Y-%m-%d'
 
 def translate_param_dict(input_data):  
     def days_difference(date_str, reference_date_str):

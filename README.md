@@ -57,7 +57,7 @@ The Core Analysis Pipeline consists of the following key files:
 - `utils.py`: Provides various general helper methods utilized by the above files.
 - `json_utils.py`: Provides helper methods to process the Medtronic Percept json data files.
 - `state_utils.py`: Provides helper methods to determine clinical states from patient dates.
-- `model_utils.py`: Provides helper methods to apply the autoregression to the data.
+- `model_utils.py`: Provides helper methods to apply the autoregression model to the data.
 
 #### User Defined Hyper-Parameters
 
