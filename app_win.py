@@ -817,6 +817,7 @@ class Plots(QWidget):
         self.patients = np.unique(df_final['pt_id'])
         self.curr_pt = self.patients[0]
         self.current_plot = None
+        self.web_view = QWebEngineView(self)
         self.initUI()
 
     def initUI(self):
@@ -831,7 +832,7 @@ class Plots(QWidget):
         self.setLayout(self.layout)
         self.update_plot(self.curr_pt)
 
-    def init_json_frame(self):
+    def init_json_frame(self, index=0):
         self.json_fields_frame = QWidget(self)
         self.json_layout = QVBoxLayout(self.json_fields_frame)
         self.json_text = QTextEdit(self.json_fields_frame)
@@ -845,10 +846,10 @@ class Plots(QWidget):
             font-size: 14px;
             font-family: 'Roboto', sans-serif;
         """)
-        self.init_patient_selector()
+        self.init_patient_selector(index)
         self.json_layout.addWidget(self.json_text)
 
-        self.populate_json_fields(0)
+        self.update_json_fields(self.patients[index])
 
         self.export_button = QPushButton("Export LinAR R² feature", self)
         self.export_button.clicked.connect(self.export_data)
@@ -857,25 +858,24 @@ class Plots(QWidget):
         self.json_fields_frame.setLayout(self.json_layout)
         self.content_layout.addWidget(self.json_fields_frame, 2)
 
-    def init_patient_selector(self):
+    def init_patient_selector(self, index):
         self.patient_selector = QComboBox(self)
         self.patient_selector.addItems(self.patients)
-        self.patient_selector.setCurrentIndex(0)
-        self.patient_selector.currentIndexChanged.connect(self.on_patient_change(self.curr_pt))
+        self.patient_selector.setCurrentIndex(index)
+        self.patient_selector.currentIndexChanged.connect(self.nt_change)
 
-    def populate_json_fields(self, patient):
+    def update_json_fields(self, patient):
         pt_df = self.df_final.query('pt_id == @patient')
         self.json_text.append(f"Subject_name: {patient}\n")
-        self.json_text.append(f"Initial_DBS_programming_date: {pt_df.query('days_since_dbs == 0')['timestamp'].head(1)}\n")
+        self.json_text.append(f"Initial DBS programming\n: {pd.to_datetime(pt_df.query('days_since_dbs == 0')['timestamp'].values[0], format='ISO8601').date()}\n")
         self.json_text.append(f"Total samples: {len(pt_df.index)}\n")
         self.json_text.append(f"Total days: {len(np.unique(pt_df['days_since_dbs']))}\n")
-        if(3 in pt_df['state_label']):
+        if('Responder' in pt_df['state_label']):
             self.json_text.append(f"Responder: {True}\n")
         else:
             self.json_text.append(f"Responder: {False}\n")
 
     def init_plot_frame(self):
-        self.web_view = QWebEngineView(self)
         self.web_view.setFixedSize(900, 650)
         self.configure_web_view()
 
@@ -915,10 +915,11 @@ class Plots(QWidget):
 
         self.layout.addLayout(self.button_layout)
 
-    def on_patient_change(self, patient):
-        self.update_plot(patient)
-        self.populate_json_fields(patient)
+    def nt_change(self, index):
+        patient = self.patients[index]
         self.curr_pt = patient
+        self.init_json_frame(index)
+        self.update_plot(patient)
 
     def on_hemisphere_change(self, index):
         self.param_dict['hemisphere'] = index
