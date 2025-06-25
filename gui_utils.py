@@ -5,51 +5,17 @@ import plotly.io as pio
 import tempfile
 from PySide6.QtWidgets import QFileDialog
 
-DATE_FORMAT = '%m-%d-%Y'
-
-def translate_param_dict(input_data):  
-    def days_difference(date_str, reference_date_str):
-        date = datetime.strptime(date_str, DATE_FORMAT)
-        reference_date = datetime.strptime(reference_date_str, DATE_FORMAT)
-        return (date - reference_date).days
-
-    pre_DBS_example_days = [days_difference(day, input_data['Initial_DBS_programming_date']) for day in input_data['pre_DBS_example_days']]
-    post_DBS_example_days = [days_difference(day, input_data['Initial_DBS_programming_date']) for day in input_data['post_DBS_example_days']]
-
-    hemisphere = 0
-    
-    current_day = datetime.now().strftime(DATE_FORMAT)
-    if input_data['responder']:
-        responder_zone_idx = (
-            days_difference(input_data['responder_date'], input_data['Initial_DBS_programming_date']), 
-            days_difference(current_day, input_data['responder_date'])
-        )
-        input_data['responder_zone_idx'] = responder_zone_idx
-        input_data['non_responder_idx'] = []
-    else:
-        input_data['responder_zone_idx'] = []
-        input_data['non_responder_idx'] = (0, days_difference(current_day, input_data['Initial_DBS_programming_date']))
-        
-    translated_data = {
-        "dbs_date": input_data['Initial_DBS_programming_date'],
-        "responder_zone_idx": input_data['responder_zone_idx'],
-        "non_responder_idx": input_data['non_responder_idx'],
-        "subject_name": input_data['subject_name'],
-        "pre_DBS_example_days": pre_DBS_example_days,
-        "post_DBS_example_days": post_DBS_example_days,
-        "hemisphere": hemisphere,
-        "cosinor_window_left": 2,
-        "cosinor_window_right": 2,
-        "include_nonlinear": False,
-        "responder_date": input_data['responder_date']
-    }
-
-    return translated_data
+DATE_FORMAT = '%Y-%m-%d'
 
 def add_extension(filename, extension):
     return filename if filename.lower().endswith(extension.lower()) else filename + extension
 
-def save_lin_ar_feature(data, filename):
+def save_lin_ar_feature(df, filename, param_dict):
+    model = param_dict['model']
+    hemisphere = 'left' if param_dict['hemisphere'] == 0 else 'right'
+    data = df.groupby('days_since_dbs').head(1)[[f'lfp_{hemisphere}_day_r2_{model}', 'days_since_dbs']]
+    data['date'] = pd.to_datetime(df.groupby('days_since_dbs').head(1)['timestamp']).dt.date
+
     ext = filename.split('.')[-1].lower()
     
     if ext == 'json':
