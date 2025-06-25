@@ -157,7 +157,7 @@ class MainWindow(QWidget):
 
     def on_script_finished(self, df_final=None, pt_changes_df=None):
         self.loading_screen.hide()
-        if not df_final.empty and not pt_changes_df.empty:
+        if not df_final.empty:
             self.show_plots(df_final, pt_changes_df)
         else:
             QMessageBox.warning(self, "Error", "Failed to process the data. Please try again.")
@@ -816,6 +816,8 @@ class Plots(QWidget):
         self.pt_changes_df = pt_changes_df
         self.patients = np.unique(df_final['pt_id'])
         self.curr_pt = self.patients[0]
+        with open('ocd_patient_info.json') as f:
+            self.patient_dict = json.load(f)
         self.current_plot = None
         self.web_view = QWebEngineView(self)
         self.initUI()
@@ -862,18 +864,19 @@ class Plots(QWidget):
         self.patient_selector = QComboBox(self)
         self.patient_selector.addItems(self.patients)
         self.patient_selector.setCurrentIndex(index)
-        self.patient_selector.currentIndexChanged.connect(self.nt_change)
+        self.patient_selector.currentIndexChanged.connect(self.patient_change)
 
     def update_json_fields(self, patient):
         pt_df = self.df_final.query('pt_id == @patient')
+        self.json_text.clear()
         self.json_text.append(f"Subject_name: {patient}\n")
-        self.json_text.append(f"Initial DBS programming\n: {pd.to_datetime(pt_df.query('days_since_dbs == 0')['timestamp'].values[0], format='ISO8601').date()}\n")
+        self.json_text.append(f"Initial DBS programming:\n {self.patient_dict[patient]['dbs_date']}\n")
         self.json_text.append(f"Total samples: {len(pt_df.index)}\n")
         self.json_text.append(f"Total days: {len(np.unique(pt_df['days_since_dbs']))}\n")
-        if('Responder' in pt_df['state_label']):
-            self.json_text.append(f"Responder: {True}\n")
+        if(self.patient_dict[self.curr_pt]['response_status'] == 1):
+            self.json_text.append(f"Responder on {self.patient_dict[patient]['response_date']}\n")
         else:
-            self.json_text.append(f"Responder: {False}\n")
+            self.json_text.append(f"Non-responder\n")
 
     def init_plot_frame(self):
         self.web_view.setFixedSize(900, 650)
@@ -915,11 +918,11 @@ class Plots(QWidget):
 
         self.layout.addLayout(self.button_layout)
 
-    def nt_change(self, index):
+    def patient_change(self, index):
         patient = self.patients[index]
         self.curr_pt = patient
-        self.init_json_frame(index)
-        self.update_plot(patient)
+        self.update_json_fields(self.curr_pt)
+        self.update_plot(self.curr_pt)
 
     def on_hemisphere_change(self, index):
         self.param_dict['hemisphere'] = index
@@ -942,7 +945,7 @@ class Plots(QWidget):
     def go_back(self):
         self.hide()
         self.parent.setGeometry(100, 100, WINDOW_WIDTH, WINDOW_HEIGHT)
-        self.parent.frame1.show()
+        self.parent.show_opening_screen()
 
     def download_image(self):
         file_path = gui_utils.open_save_dialog(self, "Save Image", "")
@@ -954,8 +957,8 @@ class Plots(QWidget):
     def export_data(self):
         file_path = gui_utils.open_save_dialog(self, "Save Data", "")
         if file_path:
-            lin_ar_df = gui_utils.prepare_export_data(self.percept_data, self.param_dict)
-            gui_utils.save_lin_ar_feature(lin_ar_df, file_path)
+            data = self.df_final.query('pt_id == @self.curr_pt')
+            gui_utils.save_lin_ar_feature(data, file_path, self.param_dict)
 
 
 if __name__ == "__main__":

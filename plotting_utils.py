@@ -37,6 +37,9 @@ def plot_metrics(
     # Load param settings
     with open('param.json', 'r') as f:
         param_dict = json.load(f)
+
+    with open('ocd_patient_info.json', 'r') as f:
+        patient_dict = json.load(f)[patient]
     
     model = param_dict['model']
     hemisphere = 'left' if hemisphere == 0 else 'right'
@@ -76,7 +79,7 @@ def plot_metrics(
         column_widths=[0.3, 0.35, 0.35, 0.1],
         specs=[[{"colspan": 4}, None, None, None],
                 [{"colspan": 3}, None, None, {"colspan": 1}]],
-        subplot_titles=("Full Time-Domain Plot", "Zoomed Pre-DBS", "Zoomed Post-DBS",
+        subplot_titles=("Full Time-Domain Plot",
                         "Linear AR R² Over Time", "Linear AR R² Violin Plot"))
 
     # Set plot aesthetics
@@ -143,8 +146,8 @@ def plot_metrics(
                         line=dict(color=c_linAR, width=1),
                         showlegend=False
                     ), row=1, col=1)
+    fig.add_vline(x=patient_dict['dbs_date'], row=1, col=1, line_dash='dash', line_color='hotpink', line_width=5)
 
-    linAR_t = pt_df.dropna(subset=[f'lfp_{hemisphere}_preds_{model}'])['CT_timestamp']
     #fig.add_trace(go.Scatter(x=linAR_t, y=pt_df.dropna(subset=[f'lfp_{hemisphere}_preds_{model}'])[f'lfp_{hemisphere}_preds_{model}'], mode='lines', name="Linear AR", line=dict(color=c_linAR, width=1.5), showlegend=False), row=1, col=1)                
     fig.update_yaxes(title_text="9 Hz LFP (mV)", row=1, col=1, tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
     fig.update_xaxes(tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
@@ -166,7 +169,7 @@ def plot_metrics(
     color_dict = {0: c_preDBS, 1: c_disinhibited, 2: c_nonresponder, 3: c_responder, 4: c_dots}
 
     for color in color_dict.keys():
-        if color not in pt_df['state_label']:
+        if color not in pt_df['state_label'].values:
             continue    
         state_df = pt_df.query('state_label == @color')
         state_days = state_df.groupby('days_since_dbs').head(1)['days_since_dbs']
@@ -179,6 +182,8 @@ def plot_metrics(
             line=dict(color=color_dict[color]),
             showlegend=False
         ), row=2, col=1)
+
+    fig.add_vline(x=0, row=2, col=1, line_dash='dash', line_color='hotpink', line_width=5)
 
     fig.update_yaxes(title_text="Linear AR R²", range=(-0.5, 1), row=2, col=1, tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
     fig.update_xaxes(tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
@@ -197,9 +202,9 @@ def plot_metrics(
             meanline=dict(color='black', width=2)
         ), row=2, col=4)
 
-    if 'Responder' in pt_df['state_label_str']:
+    if patient_dict['response_status'] == 1:
         fig.add_trace(go.Violin(
-            y=pt_df.query('state_label == 3').groupby('days_since_dbs').head(1)[f'lfp_{hemisphere}_day_r2_{model}'],  
+            y=pt_df.query("days_since_dbs >= @patient_dict['response_date']").groupby('days_since_dbs').head(1)[f'lfp_{hemisphere}_day_r2_{model}'],  
             side='positive', 
             line_color=c_responder, 
             fillcolor=c_responder,
@@ -210,7 +215,7 @@ def plot_metrics(
         ), row=2, col=4)
     else:
         fig.add_trace(go.Violin(
-            y=pt_df.query('state_label == 2').groupby('days_since_dbs').head(1)[f'lfp_{hemisphere}_day_r2_{model}'], 
+            y=pt_df.query('days_since_dbs > 0').groupby('days_since_dbs').head(1)[f'lfp_{hemisphere}_day_r2_{model}'], 
             side='positive', 
             line_color=c_nonresponder, 
             fillcolor=c_nonresponder,

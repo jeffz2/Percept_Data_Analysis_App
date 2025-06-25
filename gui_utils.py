@@ -10,7 +10,12 @@ DATE_FORMAT = '%Y-%m-%d'
 def add_extension(filename, extension):
     return filename if filename.lower().endswith(extension.lower()) else filename + extension
 
-def save_lin_ar_feature(data, filename):
+def save_lin_ar_feature(df, filename, param_dict):
+    model = param_dict['model']
+    hemisphere = 'left' if param_dict['hemisphere'] == 0 else 'right'
+    data = df.groupby('days_since_dbs').head(1)[[f'lfp_{hemisphere}_day_r2_{model}', 'days_since_dbs']]
+    data['date'] = pd.to_datetime(df.groupby('days_since_dbs').head(1)['timestamp']).dt.date
+
     ext = filename.split('.')[-1].lower()
     
     if ext == 'json':
