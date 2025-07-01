@@ -4,7 +4,7 @@ import model_utils
 import json
 
 def model_data(df: pd.DataFrame, window_size=3, causal=True, use_constant=False):
-    with open('param.json', 'r') as f:
+    with open('data/param.json', 'r') as f:
         param_dict= json.load(f)
     model = param_dict['model']
     window_size = int(param_dict['Window size'])

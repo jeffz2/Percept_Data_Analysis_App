@@ -10,7 +10,7 @@ def main():
     Should be used as a toy exploration of the pipeline, change parameters in patient_info.json to see results.
     """
 
-    with open('patient_info.json', 'r') as f:
+    with open('data/patient_info.json', 'r') as f:
         patient_dict = json.load(f)
 
     pt = patient_dict[0] # Process data from first patient in patient_info.json

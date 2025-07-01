@@ -51,7 +51,7 @@ def process_data(pt_name: str, raw_data: pd.DataFrame, patient_dict: dict):
 
     # Fix overvoltages and fill in holes in data using the specified method(s).
     # Adjust outlier filling methods as necessary
-    with open('param.json', 'r') as f:
+    with open('data/param.json', 'r') as f:
         param_dict = json.load(f)
     name = param_dict['model'] 
     

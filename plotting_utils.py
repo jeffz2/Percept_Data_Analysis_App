@@ -35,10 +35,10 @@ def plot_metrics(
     sz = 5
 
     # Load param settings
-    with open('param.json', 'r') as f:
+    with open('data/param.json', 'r') as f:
         param_dict = json.load(f)
 
-    with open('ocd_patient_info.json', 'r') as f:
+    with open('data/patient_info.json', 'r') as f:
         patient_dict = json.load(f)[patient]
     
     model = param_dict['model']
