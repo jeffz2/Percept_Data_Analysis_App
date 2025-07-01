@@ -6,6 +6,12 @@ The Percept Desktop App is designed to provide an intuitive user interface for r
 
 ## User Manual
 
+### General Workflow
+
+-  Store patients in the app's database with information listed in the required parameters below
+-  Process data (this step may take a couple minutes)
+-  Data visualization, displays plots from all patients originally added
+
 ### Key Fields
 
 - `Subject_name`: The codename used to track a specific patient (e.g., '009').

@@ -1,12 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 a = Analysis(
     ['app_win.py'],
     pathex=[],
     binaries=[],
     datas=[
-        ('C:/Users/jeffr/anaconda3/envs/percept_app/Lib/site-packages/kaleido', 'kaleido'), 
+        ('C:/Users/jeffr/anaconda3/envs/percept_app/Lib/site-packages/kaleido', 'kaleido'),
+        ('icons', 'icons'),
+        ('patient_info.json', 'data'),
+        ('param.json', 'data') 
     ],
     hiddenimports=[],
     hookspath=[],
