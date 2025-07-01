@@ -1,1 +1,9 @@
-{}
+{
+    "P001": {
+        "directory": "Path/to/folder/with/patient/json/data",
+        "dbs_date": "1999-12-31",
+        "response_status": 1,
+        "response_date": "2000-01-01"
+    }
+
+}

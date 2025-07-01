@@ -13,7 +13,7 @@ def main():
     with open('patient_info.json', 'r') as f:
         patient_dict = json.load(f)
 
-    pt = patient_dict[0]
+    pt = patient_dict[0] # Process data from first patient in patient_info.json
     # Generate data based on subject name and parameters
     raw_df, param_changes = generate_raw(pt, patient_dict[pt])
 

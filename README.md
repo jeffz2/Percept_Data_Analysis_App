@@ -72,9 +72,9 @@ To run the Core Analysis Pipeline, users must specify certain hyperparameters, d
 **Required Parameters:**
 
 - `subject_name`: A codename for tracking a specific patient (e.g., '009').
-- `directory`: A string corresponding to the path of the directory with the subject's JSON files.
+- `directory`: A string corresponding to the path of the directory with the subject's JSON files. Use CTRL-SHIFT-C on a selected folder to copy its path.
 - `dbs_date`: The start date of DBS treatment, in the format YYYY-MM-DD.
-- `response_status`: The response status of the patient if known.
+- `response_status`: The response status of the patient if known. If unknown, default to non-response.
 - `response_date`: The response date of the patient, if applicable, in YYYY-MM-DD format or enter the # of days after DBS activation.
 - `disinhibited_dates`: The disinhibited dates of the patient, if applicable, in [start date, end date] format with dates in YYYY-MM-DD format, or enter the # of days after DBS activation
 
