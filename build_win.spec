@@ -6,9 +6,8 @@ a = Analysis(
     binaries=[],
     datas=[
         ('C:/Users/jeffr/anaconda3/envs/percept_app/Lib/site-packages/kaleido', 'kaleido'),
-        ('icons', 'icons'),
-        ('patient_info.json', 'data'),
-        ('param.json', 'data') 
+        ('icons/*.ico', 'icons'),
+        ('data/*.json', 'data'),
     ],
     hiddenimports=[],
     hookspath=[],

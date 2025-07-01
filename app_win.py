@@ -32,6 +32,12 @@ WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
 LOADING_SCREEN_INTERVAL = 100  # in milliseconds
 
+def resource_path(relative_path):
+    # Works for development and PyInstaller
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
 def worker_function(patient_dict, result_queue):
     try:
         df_final = pd.DataFrame()
@@ -275,25 +281,25 @@ class OpeningScreen(QWidget):
         toolbar.setIconSize(QSize(30, 30))
         self.layout.addWidget(toolbar)
 
-        doc_button = QAction(QIcon("icons/doc_icon.png"), "See GitHub documentation of the app", self)
+        doc_button = QAction(QIcon(resource_path("icons/doc_icon.ico")), "See GitHub documentation of the app", self)
         doc_button.setStatusTip("See GitHub Documentation of the app")
         doc_button.triggered.connect(lambda: open_url("https://github.com/jeffz2/Percept_Data_Analysis_App/blob/percept_2025_dev/README.md"))
         toolbar.addAction(doc_button)
 
-        help_button = QAction(QIcon("icons/help_icon.png"), "How to use the app", self)
+        help_button = QAction(QIcon(resource_path("icons/help_icon.ico")), "How to use the app", self)
         help_button.setStatusTip("For a step-by-step guide to use the app")
         help_button.triggered.connect(self.parent.show_help_menu)
         toolbar.addAction(help_button)
 
-        settings_button = QAction(QIcon("icons/settings_icon.png"), "Processing settings", self)
+        settings_button = QAction(QIcon(resource_path("icons/settings_icon.ico")), "Processing settings", self)
         settings_button.setStatusTip("Processing settings")
         settings_button.triggered.connect(self.parent.show_settings_menu)
         toolbar.addAction(settings_button)
 
     def proceed(self):
-        if not os.path.exists("patient_info.json"):
+        if not os.path.exists(resource_path("data/patient_info.json")):
             return WindowsError
-        with open("patient_info.json", 'r') as f:
+        with open(resource_path("data/patient_info.json"), 'r') as f:
             try:
                 patient_dict = json.load(f)
             except json.JSONDecodeError:
@@ -472,7 +478,7 @@ class SettingsMenu(QWidget):
             param_dict['model'] = "OvER"
         
         try:
-            with open("param.json", 'w') as f:
+            with open(resource_path("data/param.json"), 'w') as f:
                 json.dump(param_dict, f, indent=4)
                 f.close()
         except Exception as e:
@@ -554,9 +560,9 @@ class PatientMenu(QWidget):
 
 
     def load_patient_data(self):
-        if not os.path.exists("patient_info.json"):
+        if not os.path.exists(resource_path("data/patient_info.json")):
             return {}
-        with open("patient_info.json", 'r') as f:
+        with open(resource_path("data/patient_info.json"), 'r') as f:
             try:
                 return json.load(f)
             except json.JSONDecodeError:
@@ -682,7 +688,7 @@ class PatientMenu(QWidget):
 
             patients.update(pt_dict)
 
-            with open("patient_info.json", 'w') as f:
+            with open(resource_path("data/patient_info.json"), 'w') as f:
                 json.dump(patients, f, indent=4)
 
             dialog.accept()
@@ -729,7 +735,7 @@ class PatientMenu(QWidget):
                 return
 
             del patients[patient_id]
-            with open("patient_info.json", 'w') as f:
+            with open(resource_path("data/patient_info.json"), 'w') as f:
                 json.dump(patients, f, indent=4)
 
             dialog.accept()
@@ -819,13 +825,13 @@ class Plots(QWidget):
     def __init__(self, parent,df_final, pt_changes_df):
         super().__init__(parent)
         self.parent = parent
-        with open('param.json', 'r') as f:
+        with open(resource_path('data/param.json'), 'r') as f:
             self.param_dict = json.load(f)
         self.df_final = df_final
         self.pt_changes_df = pt_changes_df
         self.patients = np.unique(df_final['pt_id'])
         self.curr_pt = self.patients[0]
-        with open('patient_info.json') as f:
+        with open('data/patient_info.json') as f:
             self.patient_dict = json.load(f)
         self.current_plot = None
         self.web_view = QWebEngineView(self)
