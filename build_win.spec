@@ -1,12 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 a = Analysis(
     ['app_win.py'],
     pathex=[],
     binaries=[],
     datas=[
-        ('C:/Users/jeffr/anaconda3/envs/percept_app/Lib/site-packages/kaleido', 'kaleido'), 
+        ('C:/Users/jeffr/anaconda3/envs/percept_app/Lib/site-packages/kaleido', 'kaleido'),
+        ('icons/*.ico', 'icons'),
+        ('data/*.json', 'data'),
     ],
     hiddenimports=[],
     hookspath=[],
@@ -18,6 +19,7 @@ a = Analysis(
 )
 
 pyz = PYZ(a.pure)
+
 
 exe = EXE(
     pyz,

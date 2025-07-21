@@ -2,9 +2,15 @@
 
 ## Overview
 
-The Percept Desktop App is designed to provide an intuitive user interface for running the percept-data analysis pipeline for OCD patients, as detailed in this [paper](https://www.nature.com/articles/s41591-024-03125-0). The original program was developed using a combination of MATLAB and Python, as seen in the [PerceptDataAnalysis repository](https://github.com/shethlab/PerceptDataAnalysis). This application translates all the code into Python and uses a Python-based library to create the GUI. The source code and instructions for downloading the app can be found on this GitHub repo
+The Percept Desktop App is designed to provide an intuitive user interface for running the percept-data analysis pipeline for OCD patients, as detailed in this [paper](https://www.nature.com/articles/s41591-024-03125-0). The original program was developed using a combination of MATLAB and Python, as seen in the [PerceptDataAnalysis repository](https://github.com/shethlab/PerceptDataAnalysis) and includes updates to the autoregressive model and outlier handling methods as seen in the the [PerceptArtifactAnalysis repository](https://github.com/ProvenzaLab/PerceptArtifactAnalysis). This application translates all the code into Python and uses a Python-based library to create the GUI. The source code and instructions for downloading the app can be found on this GitHub repo
 
 ## User Manual
+
+### General Workflow
+
+-  Store patients in the app's database with information listed in the required parameters below
+-  Process data (this step may take a couple minutes)
+-  Data visualization, displays plots from all patients originally added
 
 ### Key Fields
 
@@ -36,7 +42,7 @@ Data exporting is a key feature of the Percept Data Analysis App and was designe
 - If you specify an extension, the file will be saved in the corresponding format, unknown file formats will default `.csv`.
 
 ### Installation and Demo Video:
-- A demo video showcasing the app can be found [here](https://drive.google.com/file/d/1tWAAfF2GR7SGf6W4wstNonslh4T7LCWn/view).
+- A demo video showcasing the app can be found [insert example video here]().
 
 
 ## Developer Guide
@@ -66,9 +72,9 @@ To run the Core Analysis Pipeline, users must specify certain hyperparameters, d
 **Required Parameters:**
 
 - `subject_name`: A codename for tracking a specific patient (e.g., '009').
-- `directory`: A string corresponding to the path of the directory with the subject's JSON files.
+- `directory`: A string corresponding to the path of the directory with the subject's JSON files. Use CTRL-SHIFT-C on a selected folder to copy its path.
 - `dbs_date`: The start date of DBS treatment, in the format YYYY-MM-DD.
-- `response_status`: The response status of the patient if known.
+- `response_status`: The response status of the patient if known. If unknown, default to non-response.
 - `response_date`: The response date of the patient, if applicable, in YYYY-MM-DD format or enter the # of days after DBS activation.
 - `disinhibited_dates`: The disinhibited dates of the patient, if applicable, in [start date, end date] format with dates in YYYY-MM-DD format, or enter the # of days after DBS activation
 
@@ -76,7 +82,7 @@ Example values for these parameters are provided in `patient_info.json`.
 
 **Optional Parameters:**
 
-- `window_size`: Window size of data, in days, to train the autoregressive model.
+- `window_size`: Window size of data, in days, to train and test the autoregressive model. Specified as the total number of days in the sliding window.
 - `outlier_fill_method`: Outlier interpolation method used during processing (Naive, Threshold, Overages).
 
 These parameters can be adjusted in the app's settings menu.
@@ -101,6 +107,8 @@ The GUI Interface is primarily built using two files: `app.py` and `gui_utils.py
 - `gui_utils.py`: A utility file used by `app.py` to perform tasks such as data export, validation, and transformations.
 
 Documentation for the GUI component is minimal, as it is designed to serve as a flexible abstraction layer for the Core Analysis Pipeline. Developers are encouraged to customize the GUI to fit specific needs. The GUI can be replaced or modified, as long as it can interface with the Core Analysis Pipeline and correctly format the user-defined hyperparameters.
+
+Run the app GUI in terminal before compiling using the simply python run command, `python ./app_win.py` to test functionality.
 
 ### Building/Compiling the App
 
