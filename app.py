@@ -37,7 +37,11 @@ def worker_function(patient_dict, result_queue):
         pt_changes_df = pd.DataFrame()
 
         for pt in patient_dict.keys():
-            raw_df, param_changes = generate_raw.generate_raw(pt, patient_dict[pt])
+            try:
+                raw_df, param_changes = generate_raw.generate_raw(pt, patient_dict[pt])
+            except Exception as e:
+                print(f"Unable to retrieve data for pateint {pt}")
+                continue
 
             processed_data = process_data.process_data(pt, raw_df, patient_dict[pt])
 

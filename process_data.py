@@ -8,7 +8,7 @@ import state_utils
 import json
 
 central_time = ZoneInfo('America/Chicago')
-def process_data(pt_name: str, raw_data: pd.DataFrame, patient_dict: dict):
+def process_data(pt_name: str, raw_data: pd.DataFrame, patient_dict: dict, ark: bool = False, max_lag: int = 144):
 
     # Fill outliers: define which filling method(s) you want to use below
     outlier_fill_methods = {
@@ -97,11 +97,28 @@ def process_data(pt_name: str, raw_data: pd.DataFrame, patient_dict: dict):
             if join_df.empty:
                 processed_data[f'{name}_lag_1'] = np.nan
             else:   processed_data = processed_data.join(join_df, how='left')
+
+            if ark:
+                for k in range(2, max_lag + 1):
+                    join_df = groups_left.apply(lambda g: pd.DataFrame({f'{name}_lag_{k}': g[name].shift(periods=k)}), include_groups=False)
+                    if join_df.empty:
+                        processed_data[f'{name}_lag_{k}'] = np.nan
+                    else:
+                        processed_data = processed_data.join(join_df, how='left')
+              
         else:
             join_df = groups_right.apply(lambda g: pd.DataFrame({f'{name}_lag_1': g[name].shift(periods=1)}), include_groups=False)
             if join_df.empty:
                 processed_data[f'{name}_lag_1'] = np.nan
             else:   processed_data = processed_data.join(join_df, how='left')
+
+            if ark:
+                for k in range(2, max_lag + 1):
+                    join_df = groups_right.apply(lambda g: pd.DataFrame({f'{name}_lag_{k}': g[name].shift(periods=k)}), include_groups=False)
+                    if join_df.empty:
+                        processed_data[f'{name}_lag_{k}'] = np.nan
+                    else:
+                        processed_data = processed_data.join(join_df, how='left')
 
     state_labels = state_utils.get_state_labels(processed_data, patient_dict)
     processed_data = processed_data.drop(columns=state_labels.columns, errors='ignore').join(state_labels)

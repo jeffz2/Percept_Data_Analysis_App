@@ -43,12 +43,20 @@ def worker_function(patient_dict, result_queue):
         df_final = pd.DataFrame()
         pt_changes_df = pd.DataFrame()
 
+        with open(resource_path('data/param.json'), 'r') as f:
+            param_dict = json.load(f)
+
         for pt in patient_dict.keys():
-            raw_df, param_changes = generate_raw.generate_raw(pt, patient_dict[pt])
+            try:
+                raw_df, param_changes = generate_raw.generate_raw(pt, patient_dict[pt])
 
-            processed_data = process_data.process_data(pt, raw_df, patient_dict[pt])
+            except Exception as e:
+                print(f"Unable to retrieve data for pateint {pt}")
+                continue
 
-            df_w_preds = model_data.model_data(processed_data)
+            processed_data = process_data.process_data(pt, raw_df, patient_dict[pt], ark=param_dict['ark'], max_lag=param_dict['lags'] if param_dict['ark'] else 1)
+
+            df_w_preds = model_data.model_data(processed_data, use_constant=False if not param_dict['ark'] else True, ark=param_dict['ark'], max_lag=param_dict['lags'] if param_dict['ark'] else 1)
 
             pt_changes_df = pd.concat([pt_changes_df, param_changes], ignore_index=True)
 
@@ -349,7 +357,6 @@ class SettingsMenu(QWidget):
         self.field_order = [
             "Window size"
         ]
-        # TODO: Implement getting param setttings from json to display as default
         self.fields = {
             "Window size": 3
         }
@@ -363,6 +370,8 @@ class SettingsMenu(QWidget):
 
         self.create_model_type_checkbox()
         self.create_field_entries()
+        self.create_delta_checkbox()
+        self.create_ark_checkbox()
 
         self.init_bottom_buttons()
         self.setLayout(self.layout)
@@ -422,6 +431,50 @@ class SettingsMenu(QWidget):
         model_layout.addStretch()
 
         self.layout.addLayout(model_layout)
+    
+    def create_delta_checkbox(self):
+        self.delta_label = QLabel("Delta Normalize R²")
+        self.delta_checkbox = QCheckBox()
+        self.delta_checkbox.setToolTip("Normalize R² value with pre-DBS average. Will revert to original R² values if no pre-DBS data is available.")
+
+        self.delta_checkbox.setChecked(False)
+
+        delta_layout = QHBoxLayout()
+        delta_layout.addWidget(self.delta_label)
+        delta_layout.addWidget(self.delta_checkbox)
+
+        self.layout.addLayout(delta_layout)
+
+    def create_ark_checkbox(self):
+        self.ark_label = QLabel("AR(k) Model")
+        self.ark_checkbox = QCheckBox()
+        self.ark_checkbox.setToolTip("Use an AR(k) model to predict LFP data. Default model is an AR(1) model.")
+
+        self.lag_label = QLabel("Lags")
+        self.lag_entry = QLineEdit(self)
+        self.lag_entry.setText('144')
+
+        self.ark_checkbox.setChecked(False)
+        self.ark_checkbox.stateChanged.connect(self.toggle_lags)
+
+        ark_layout = QHBoxLayout()
+        ark_layout.addWidget(self.ark_label)
+        ark_layout.addWidget(self.ark_checkbox)
+        ark_layout.addSpacing(15)
+        ark_layout.addWidget(self.lag_label)
+        ark_layout.addWidget(self.lag_entry)
+        self.lag_label.hide()
+        self.lag_entry.hide()
+
+        self.layout.addLayout(ark_layout)
+
+    def toggle_lags(self):
+        if self.ark_checkbox.isChecked():
+            self.lag_label.show()
+            self.lag_entry.show()
+        else:
+            self.lag_label.hide()
+            self.lag_entry.hide()
 
     def get_tooltips(self):
         return {
@@ -443,7 +496,12 @@ class SettingsMenu(QWidget):
         if not self.naive_checkbox.isChecked() and not self.threshold_checkbox.isChecked() and not self.overage_checkbox.isChecked():
             QMessageBox.warning(self, "Invalid Input", "No overage handling method is checked")
             return False
-        
+        if self.ark_checkbox.isChecked():
+            try:
+                tmp = int(self.lag_entry.text())
+            except Exception or tmp <= 0:
+                QMessageBox.warning(self, "Invalid Input", "Lags must an integer greater than 0")
+                return
         return True
         
     def go_back(self):
@@ -456,6 +514,9 @@ class SettingsMenu(QWidget):
         self.naive_checkbox.setChecked(False)
         self.threshold_checkbox.setChecked(False)
         self.overage_checkbox.setChecked(True)
+
+        self.delta_checkbox.setChecked(False)
+        self.ark_checkbox.setChecked(False)
     
     def save_settings(self):
         if not self.validate_fields():
@@ -477,6 +538,12 @@ class SettingsMenu(QWidget):
         elif self.overage_checkbox.isChecked():
             param_dict['model'] = "OvER"
         
+        param_dict['delta'] = 1 if self.delta_checkbox.isChecked() else 0
+
+        param_dict['ark'] = 1 if self.ark_checkbox.isChecked() else 0
+
+        param_dict['lags'] = int(self.lag_entry.text()) if self.ark_checkbox.isChecked() else False
+
         try:
             with open(resource_path("data/param.json"), 'w') as f:
                 json.dump(param_dict, f, indent=4)
@@ -623,6 +690,8 @@ class PatientMenu(QWidget):
                 response_date_label.hide()
                 response_date_entry.hide()
                 response_date_entry.setToolTip(self.tooltips[key])
+            elif key == "directory":
+                continue
             else:
                 hbox = QHBoxLayout()
                 label = QLabel(key_labels[key])
@@ -655,7 +724,7 @@ class PatientMenu(QWidget):
                     if response_checkbox.isChecked():
                         pt_dict[patient][key] = response_date_entry.text()
                 elif key == "directory":
-                    pt_dict[patient][key] = form_entries[key].text()[1:-1]
+                    pt_dict[patient][key] = gui_utils.select_folder()
                 else:
                     if form_entries[key].text() == "":
                         continue
@@ -868,6 +937,19 @@ class Plots(QWidget):
 
         self.update_json_fields(self.patients[index])
 
+        self.reg_checkbox = QCheckBox("Show Regression", self)
+        self.changes_checkbox = QCheckBox("Show Parameter Changes", self)
+
+        self.reg_checkbox.setChecked(False)
+        if len(self.patients) <= 1:
+            self.reg_checkbox.setCheckable(False)
+        self.reg_checkbox.stateChanged.connect(self.update_plot(self.curr_pt, True if self.reg_checkbox.isChecked() else False, True if self.changes_checkbox.isChecked() else False))
+        self.json_layout.addWidget(self.reg_checkbox, alignment=Qt.AlignCenter | Qt.AlignBottom)
+
+        self.changes_checkbox.setChecked(False)
+        self.changes_checkbox.stateChanged.connect(self.update_plot(self.curr_pt, True if self.reg_checkbox.isChecked() else False, True if self.changes_checkbox.isChecked() else False))
+        self.json_layout.addWidget(self.changes_checkbox, alignment=Qt.AlignCenter | Qt.AlignBottom)
+
         self.export_button = QPushButton("Export LinAR R² feature", self)
         self.export_button.clicked.connect(self.export_data)
         self.json_layout.addWidget(self.export_button, alignment=Qt.AlignCenter | Qt.AlignBottom)
@@ -937,18 +1019,20 @@ class Plots(QWidget):
         patient = self.patients[index]
         self.curr_pt = patient
         self.update_json_fields(self.curr_pt)
-        self.update_plot(self.curr_pt)
+        self.update_plot(self.curr_pt, True if self.reg_checkbox.isChecked() else False, True if self.changes_checkbox.isChecked() else False)
 
     def on_hemisphere_change(self, index):
         self.param_dict['hemisphere'] = index
-        self.update_plot(self.curr_pt)
+        self.update_plot(self.curr_pt, True if self.reg_checkbox.isChecked() else False, True if self.changes_checkbox.isChecked() else False)
 
-    def update_plot(self, patient):
+    def update_plot(self, patient, show_reg = False, show_changes=False):
         fig = plots.plot_metrics(
             df=self.df_final,
             patient=patient,
             hemisphere=self.param_dict['hemisphere'],
-            changes_df=self.pt_changes_df
+            changes_df=self.pt_changes_df,
+            show_reg=show_reg,
+            show_changes=show_changes
         )
 
         self.current_plot = fig

@@ -151,11 +151,16 @@ def get_param_changes(js):
                 amplitude = hem_channel['SuspendAmplitudeInMilliAmps']
             except KeyError:
                 amplitude = None
+            try:
+                sensing_freq = hem_channel['SensingSetup']['FrequencyInHertz']
+            except KeyError:
+                sensing_freq = None
             hem_params = {
                 'contacts': contacts,
                 'pulse_width': pulse_width,
                 'freq': rate,
                 'amplitude': amplitude,
+                'sense_freq': sensing_freq
             }
             phase_params[hem] = hem_params
         params[phase] = phase_params
