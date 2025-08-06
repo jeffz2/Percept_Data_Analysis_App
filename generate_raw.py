@@ -5,8 +5,7 @@ from datetime import timedelta, datetime, date
 from datetime import time as dttime
 from zoneinfo import ZoneInfo
 import json_utils
-import adbs_ofc
-
+import state_utils
 
 def generate_raw(pt_name: str, patient_dict: dict):
 
@@ -54,9 +53,6 @@ def generate_raw(pt_name: str, patient_dict: dict):
 
     raw_df = pd.concat(pt_raw_df, ignore_index=True)
 
-    if pt_name in ['B014', 'B015', 'B016', 'B017', 'B018']:
-        raw_df = adbs_ofc.clean(raw_df, pt_name)
-
     # Relabel all remaining "OTHER" lead locations to VC/VS
     raw_df.loc[raw_df['left_lead_location'] == "OTHER", 'left_lead_location'] = 'VC/VS'
     raw_df.loc[raw_df['right_lead_location'] == "OTHER", 'right_lead_location'] = 'VC/VS'
@@ -70,5 +66,10 @@ def generate_raw(pt_name: str, patient_dict: dict):
     assert (raw_df['left_lead_model'] == raw_df['right_lead_model']).all()
     raw_df['lead_model'] = raw_df['left_lead_model'].where(raw_df['left_lead_model'] == raw_df['right_lead_model'], None)
     raw_df.drop(columns=['left_lead_model', 'right_lead_model'], inplace=True)
+
+    pt_changes_df['timestamp'] = pd.to_datetime(pt_changes_df['timestamp'])
+    pt_changes_df['CT_timestamp'] = pt_changes_df['timestamp'].dt.tz_convert(ZoneInfo('America/Chicago'))
+    dbs_on_date = state_utils.get_dbs_on_date(patient_dict)
+    pt_changes_df['days_since_dbs'] = [dt.days for dt in (pt_changes_df['CT_timestamp'].dt.date - dbs_on_date)]
 
     return raw_df, pt_changes_df

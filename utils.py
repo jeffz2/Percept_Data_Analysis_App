@@ -299,3 +299,14 @@ def fill_data(group_df, cols_to_fill, outlier_fill_method, offset_col='days_sinc
         all_new_cols.append(new_cols)
 
     return pd.concat(all_new_cols, axis=1)
+
+def get_sig_text(pval):
+    if pval < 0.0001:
+        return '****'
+    elif pval < 0.001:
+        return '***'
+    elif pval < 0.01:
+        return '**'
+    elif pval < 0.05:
+        return '*'
+    return "ns"

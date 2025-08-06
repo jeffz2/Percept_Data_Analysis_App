@@ -6,6 +6,10 @@ The Percept Desktop App is designed to provide an intuitive user interface for r
 
 ## User Manual
 
+### Dependancies
+
+- All required packages for the app are in requirements.txt run on Python version 3.13.5
+
 ### General Workflow
 
 -  Store patients in the app's database with information listed in the required parameters below

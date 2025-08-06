@@ -10,9 +10,8 @@ import burdened_state_regression as reg
 def plot_metrics(
     df: pd.DataFrame, 
     patient: str, 
-    hemisphere: int, 
+    hemisphere: str, 
     changes_df: pd.DataFrame,
-    show_reg: bool = False,
     show_changes: bool = False
 ) -> go.Figure:
     """
@@ -48,7 +47,6 @@ def plot_metrics(
     patient_dict = patients_dict[patient]
     model = param_dict['model']
     delta = param_dict['delta']
-    hemisphere = 'left' if hemisphere == 0 else 'right'
 
     pt_df = df.query('pt_id == @patient and lead_location == "VC/VS"')
     days = pt_df.drop_duplicates(subset=['days_since_dbs'])['days_since_dbs']
@@ -181,19 +179,6 @@ def plot_metrics(
 
     fig.add_vline(x=0, row=2, col=1, line_dash='dash', line_color='hotpink', line_width=5)
 
-    if show_reg:
-        _, threshold, prediction, cm = reg.run_regression(pt_df, patients_dict.keys(), delta, [f'lfp_{hemisphere}_day_r2_{model}'], patient)
-
-        tpr = cm[1][1] / (cm[1][1] + cm[1][0]) if cm.shape != (1, 1) else 1 if patient_dict['response_status'] == 1 else 0
-        tnr = cm[0][0] / (cm[0][0] + cm[0][1]) if cm.shape != (1, 1) else 1 if patient_dict['response_status'] == 0 else 0
-
-        fig.add_hline(y=threshold, row=2, col=1, line_dash='dash', line_color='black', line_width=2)
-        fig.add_annotation(x=days[-1], y=threshold, row=2, col=1, text=f'Regression Decision Boundary: {np.round(threshold, 3)}', showarrow=False)
-        fig.add_hrect(-0.5, threshold, row=2, col=1, fillcolor=c_responder, opacity=0.5, line_width=0)
-        fig.add_annotation(x=days[-1], y=-0.5, row=2, col=1, text=f'TPR: {tpr}', showarrow=False)
-        fig.add_hrect(threshold, 1, row=2, col=1, fillcolor=c_nonresponder, opacity=0.5, line_width=0)
-        fig.add_annotation(x=days[-1], y=1, row=2, col=1, text=f'TNR: {tnr}', showarrow=False)
-
     fig.update_yaxes(title_text="Linear AR R²", range=(-0.5, 1), row=2, col=1, tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
     fig.update_xaxes(title_text='Days Since DBS Activation', tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
     
@@ -213,6 +198,7 @@ def plot_metrics(
         ), row=2, col=4)
 
     if patient_dict['response_status'] == 1:
+        t_val, p_val = stats.ttest_ind(violin_df.query('state_label == 0')[f'lfp_{hemisphere}_day_r2_{model}'], violin_df.query("days_since_dbs >= @patient_dict['response_date']")[f'lfp_{hemisphere}_day_r2_{model}'], equal_var=False)
         fig.add_trace(go.Violin(
             y=violin_df.query("days_since_dbs >= @patient_dict['response_date']")[f'lfp_{hemisphere}_day_r2_{model}'],  
             side='positive', 
@@ -224,8 +210,8 @@ def plot_metrics(
             meanline=dict(color='white', width=2)
         ), row=2, col=4)
 
-        t_val, p_val = stats.ttest_ind(violin_df.query('state_label == 0')[f'lfp_{hemisphere}_day_r2_{model}'], violin_df.query("days_since_dbs >= @patient_dict['response_date']")[f'lfp_{hemisphere}_day_r2_{model}'], equal_var=False)
     else:
+        t_val, p_val = stats.ttest_ind(violin_df.query('state_label == 0')[f'lfp_{hemisphere}_day_r2_{model}'], violin_df.query("days_since_dbs > 0")[f'lfp_{hemisphere}_day_r2_{model}'], equal_var=False)
         fig.add_trace(go.Violin(
             y=violin_df.query('days_since_dbs > 0')[f'lfp_{hemisphere}_day_r2_{model}'], 
             side='positive', 
@@ -237,10 +223,8 @@ def plot_metrics(
             meanline=dict(color='black', width=2)
         ), row=2, col=4)
 
-        t_val, p_val = stats.ttest_ind(violin_df.query('state_label == 0')[f'lfp_{hemisphere}_day_r2_{model}'], violin_df.query("days_since_dbs > 0")[f'lfp_{hemisphere}_day_r2_{model}'], equal_var=False)
-
     fig.update_yaxes(range=(-0.5, 1), row=2, col=4, tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
-    fig.update_xaxes(title_text=f"t = {np.round(t_val, 3)}\np = {np.round(p_val, 3)}",row=2, col=4,tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
+    fig.update_xaxes(title_text=f"t = {np.round(t_val, 3)}",row=2, col=4,tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
     # Set overall layout aesthetics
     fig.update_layout(
         height=650,
@@ -268,6 +252,15 @@ def plot_metrics(
             x=0.35,
             xref="paper",
             y=0.35,  # Adjusted Y position to move the annotation upwards
+            yref="paper",
+            showarrow=False,
+            font=dict(size=14, color=title_font_color, family="Helvetica")
+        ),
+        dict(
+            text=utils.get_sig_text(p_val),
+            x=0.95,
+            xref="paper",
+            y=0.35,
             yref="paper",
             showarrow=False,
             font=dict(size=14, color=title_font_color, family="Helvetica")

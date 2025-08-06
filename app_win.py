@@ -31,6 +31,7 @@ except ImportError:
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
 LOADING_SCREEN_INTERVAL = 100  # in milliseconds
+HEMISPHERE = 'left'
 
 def resource_path(relative_path):
     # Works for development and PyInstaller
@@ -937,17 +938,9 @@ class Plots(QWidget):
 
         self.update_json_fields(self.patients[index])
 
-        self.reg_checkbox = QCheckBox("Show Regression", self)
         self.changes_checkbox = QCheckBox("Show Parameter Changes", self)
-
-        self.reg_checkbox.setChecked(False)
-        if len(self.patients) <= 1:
-            self.reg_checkbox.setCheckable(False)
-        self.reg_checkbox.stateChanged.connect(self.update_plot(self.curr_pt, True if self.reg_checkbox.isChecked() else False, True if self.changes_checkbox.isChecked() else False))
-        self.json_layout.addWidget(self.reg_checkbox, alignment=Qt.AlignCenter | Qt.AlignBottom)
-
         self.changes_checkbox.setChecked(False)
-        self.changes_checkbox.stateChanged.connect(self.update_plot(self.curr_pt, True if self.reg_checkbox.isChecked() else False, True if self.changes_checkbox.isChecked() else False))
+        self.changes_checkbox.stateChanged.connect(self.plot_param_change)
         self.json_layout.addWidget(self.changes_checkbox, alignment=Qt.AlignCenter | Qt.AlignBottom)
 
         self.export_button = QPushButton("Export LinAR R² feature", self)
@@ -956,6 +949,9 @@ class Plots(QWidget):
 
         self.json_fields_frame.setLayout(self.json_layout)
         self.content_layout.addWidget(self.json_fields_frame, 2)
+
+    def plot_param_change(self):
+        self.update_plot(self.curr_pt, HEMISPHERE, self.changes_checkbox.isChecked())
 
     def init_patient_selector(self, index):
         self.patient_selector = QComboBox(self)
@@ -1019,19 +1015,18 @@ class Plots(QWidget):
         patient = self.patients[index]
         self.curr_pt = patient
         self.update_json_fields(self.curr_pt)
-        self.update_plot(self.curr_pt, True if self.reg_checkbox.isChecked() else False, True if self.changes_checkbox.isChecked() else False)
+        self.update_plot(self.curr_pt, HEMISPHERE, self.changes_checkbox.isChecked())
 
     def on_hemisphere_change(self, index):
-        self.param_dict['hemisphere'] = index
-        self.update_plot(self.curr_pt, True if self.reg_checkbox.isChecked() else False, True if self.changes_checkbox.isChecked() else False)
+        HEMISPHERE = 'left' if index == 0 else 'right'
+        self.update_plot(self.curr_pt, HEMISPHERE, self.changes_checkbox.isChecked())
 
-    def update_plot(self, patient, show_reg = False, show_changes=False):
+    def update_plot(self, patient, hemisphere = 'left', show_changes=False):
         fig = plots.plot_metrics(
             df=self.df_final,
             patient=patient,
-            hemisphere=self.param_dict['hemisphere'],
+            hemisphere=hemisphere,
             changes_df=self.pt_changes_df,
-            show_reg=show_reg,
             show_changes=show_changes
         )
 
@@ -1065,7 +1060,7 @@ if __name__ == "__main__":
     multiprocessing.freeze_support()
     #basedir = os.path.dirname(__file__)
     app = QApplication(sys.argv)
-    app.setWindowIcon(QIcon('Icon.ico'))
+    app.setWindowIcon(QIcon('icons/Icon.ico'))
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
