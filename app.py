@@ -16,14 +16,16 @@ import plotting_utils as plots
 import gui_utils
 import multiprocessing
 import os
-from pathlib import Path
 import json
 import pandas as pd
 import numpy as np
+from opening_windows import OpeningScreen, HelpMenu, SettingsMenu
+from patient_menu import PatientMenu
 
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
 LOADING_SCREEN_INTERVAL = 100  # in milliseconds
+HEMISPHERE = 'left'
 
 def resource_path(relative_path):
     # Works for development and PyInstaller
@@ -36,12 +38,20 @@ def worker_function(patient_dict, result_queue):
         df_final = pd.DataFrame()
         pt_changes_df = pd.DataFrame()
 
+        with open(resource_path('data/param.json'), 'r') as f:
+            param_dict = json.load(f)
+
         for pt in patient_dict.keys():
-            raw_df, param_changes = generate_raw.generate_raw(pt, patient_dict[pt])
+            try:
+                raw_df, param_changes = generate_raw.generate_raw(pt, patient_dict[pt])
 
-            processed_data = process_data.process_data(pt, raw_df, patient_dict[pt])
+            except Exception as e:
+                print(f"Unable to retrieve data for pateint {pt}")
+                continue
 
-            df_w_preds = model_data.model_data(processed_data)
+            processed_data = process_data.process_data(pt, raw_df, patient_dict[pt], ark=param_dict['ark'], max_lag=param_dict['lags'] if param_dict['ark'] else 1)
+
+            df_w_preds = model_data.model_data(processed_data, use_constant=False if not param_dict['ark'] else True, ark=param_dict['ark'], max_lag=param_dict['lags'] if param_dict['ark'] else 1)
 
             pt_changes_df = pd.concat([pt_changes_df, param_changes], ignore_index=True)
 
@@ -193,586 +203,6 @@ class MainWindow(QWidget):
         self.settings_menu.hide()
         self.patient_menu.hide()
 
-
-class OpeningScreen(QWidget):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.parent = parent
-        self.initUI()
-
-    def initUI(self):
-        self.layout = QVBoxLayout(self)
-
-        self.welcome_label = QLabel("Welcome to the Percept Data Analysis App", self)
-        self.welcome_label.setAlignment(Qt.AlignCenter)
-        self.welcome_label.setStyleSheet("""
-            QLabel {
-                font-size: 25px;
-                font-family: 'Arial', sans-serif;
-                color: #ffffff;
-                padding: 10px;
-            }
-        """)
-        self.layout.addWidget(self.welcome_label)
-
-        self.description_label = QLabel(
-            'This application helps you process and analyze Medtronic percept data.<br>'
-            'Please proceed to start the data processing.<br><br>'
-            'Developed by the Provenza Lab', self)
-        self.description_label.setAlignment(Qt.AlignCenter)
-        self.description_label.setStyleSheet("""
-            QLabel {
-                font-size: 16px;
-                font-family: 'Arial', sans-serif;
-                color: #ffffff;
-                padding: 20px;
-            }
-        """)
-        self.layout.addWidget(self.description_label)
-
-        self.proceed_button = QPushButton("Start Data Processing", self)
-        self.proceed_button.setStyleSheet("""
-            QPushButton {
-                background-color: #1e90ff;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                padding: 10px 20px;
-                font-size: 18px;
-            }
-            QPushButton:hover {
-                background-color: #1c86ee;
-            }
-        """)
-        self.proceed_button.clicked.connect(self.proceed)
-        self.layout.addWidget(self.proceed_button, alignment=(Qt.AlignHCenter))
-
-        self.patient_menu_button = QPushButton("Add Patients", self)
-        self.patient_menu_button.setStyleSheet("""
-            QPushButton {
-                background-color: #1e90ff;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                padding: 10px 20px;
-                font-size: 18px;
-            }
-            QPushButton:hover {
-                background-color: #1c86ee;
-            }
-        """)
-        
-        self.patient_menu_button.clicked.connect(self.parent.show_patient_menu)
-        self.layout.addWidget(self.patient_menu_button, alignment=(Qt.AlignHCenter))
-
-        def open_url(url):
-            """Opens the given URL in the default web browser."""
-            qurl = QUrl(url)
-            QDesktopServices.openUrl(qurl)
-
-        toolbar = QToolBar("Main Window Toolbar")
-        toolbar.setIconSize(QSize(30, 30))
-        self.layout.addWidget(toolbar)
-
-        doc_button = QAction(QIcon(resource_path("icons/doc_icon.ico")), "See GitHub documentation of the app", self)
-        doc_button.setStatusTip("See GitHub Documentation of the app")
-        doc_button.triggered.connect(lambda: open_url("https://github.com/jeffz2/Percept_Data_Analysis_App/blob/percept_2025_dev/README.md"))
-        toolbar.addAction(doc_button)
-
-        help_button = QAction(QIcon(resource_path("icons/help_icon.ico")), "How to use the app", self)
-        help_button.setStatusTip("For a step-by-step guide to use the app")
-        help_button.triggered.connect(self.parent.show_help_menu)
-        toolbar.addAction(help_button)
-
-        settings_button = QAction(QIcon(resource_path("icons/settings_icon.ico")), "Processing settings", self)
-        settings_button.setStatusTip("Processing settings")
-        settings_button.triggered.connect(self.parent.show_settings_menu)
-        toolbar.addAction(settings_button)
-
-    def proceed(self):
-        if not os.path.exists(resource_path("data/patient_info.json")):
-            return WindowsError
-        with open(resource_path("data/patient_info.json"), 'r') as f:
-            try:
-                patient_dict = json.load(f)
-            except json.JSONDecodeError:
-                QMessageBox.warning(self, "Validation Error", "No patient data is stored")
-                return
-        if len(patient_dict) == 0:
-            QMessageBox.warning(self, "Validation Error", "No patient data is stored")
-            return 
-        self.parent.show_loading_screen(patient_dict)
-
-class HelpMenu(QWidget):
-    def __init__(self, parent):
-        super().__init__(parent)
-        
-        self.initUI()
-
-    def initUI(self):
-        self.layout = QVBoxLayout(self)
-
-        self.help_label = QLabel(
-            'Write a step-by-step guide to use the app.<br>'
-            'Step 1: Add patients with dbs on date, folder containing the data, and responder status.<br><br>'
-            'Step 2: Do the data processing and see results', self)
-        self.help_label.setAlignment(Qt.AlignCenter)
-        self.layout.addWidget(self.help_label)
-
-        self.init_bottom_buttons()
-        self.setLayout(self.layout)
-
-    def go_back(self):
-        self.hide()
-        self.window().show_opening_screen()
-
-    def init_bottom_buttons(self):
-        self.button_layout = QHBoxLayout()
-
-        self.back_button = QPushButton("Back", self)
-        self.back_button.clicked.connect(self.go_back)
-        self.button_layout.addWidget(self.back_button, alignment=Qt.AlignLeft | Qt.AlignBottom)
-
-        self.layout.addLayout(self.button_layout)
-
-class SettingsMenu(QWidget):
-    def __init__(self, parent):
-        super().__init__(parent)
-
-        self.field_order = [
-            "Window size"
-        ]
-        # TODO: Implement getting param setttings from json to display as default
-        self.fields = {
-            "Window size": 3
-        }
-        
-        self.tooltips = self.get_tooltips()
-        self.initUI()
-
-    def initUI(self):
-        self.layout = QVBoxLayout(self)
-        self.entries = {}
-
-        self.create_model_type_checkbox()
-        self.create_field_entries()
-
-        self.init_bottom_buttons()
-        self.setLayout(self.layout)
-
-    def create_field_entries(self):
-        for key in self.field_order:
-            value = self.fields[key]
-            hbox = QHBoxLayout()
-            label = QLabel(key, self)
-            hbox.addWidget(label)
-
-            if isinstance(value, list):
-                self.create_list_field_entries(key, value, hbox)
-            else:
-                entry = QLineEdit(self)
-                entry.setText(str(value))
-                entry.setToolTip(self.tooltips[key])
-                hbox.addWidget(entry)
-                self.entries[key] = entry
-
-            self.layout.addLayout(hbox)
-
-    def create_list_field_entries(self, key, value, layout):
-        entry1 = QLineEdit(self)
-        entry1.setText(str(value[0]))
-        entry1.setToolTip(self.tooltips[key])
-        layout.addWidget(entry1)
-        self.entries[key] = (entry1)
-    
-    def create_model_type_checkbox(self):
-        dialog = QDialog(self)
-        
-        self.model_label = QLabel("Model Type ", self)
-        self.naive_checkbox = QCheckBox("Naive", self)
-        self.threshold_checkbox = QCheckBox("Threshold", self)
-        self.overage_checkbox = QCheckBox("Overage", self)
-
-        checkbox_group = QButtonGroup(dialog)
-        checkbox_group.setExclusive(True)
-        checkbox_group.addButton(self.naive_checkbox)
-        checkbox_group.addButton(self.threshold_checkbox)
-        checkbox_group.addButton(self.overage_checkbox)
-
-        self.naive_checkbox.setToolTip(self.tooltips["naive"])
-        self.threshold_checkbox.setToolTip(self.tooltips["threshold"])
-        self.overage_checkbox.setToolTip(self.tooltips["overage"])
-
-        self.overage_checkbox.setChecked(True)
-
-        model_layout = QHBoxLayout()
-        model_layout.addWidget(self.model_label)
-        model_layout.addWidget(self.naive_checkbox)
-        model_layout.addSpacing(15)
-        model_layout.addWidget(self.threshold_checkbox)
-        model_layout.addSpacing(15)
-        model_layout.addWidget(self.overage_checkbox)
-        model_layout.addStretch()
-
-        self.layout.addLayout(model_layout)
-
-    def get_tooltips(self):
-        return {
-            "naive": "Naive outlier removal method description",
-            "threshold": "Threshold outlier removal method description",
-            "overage": "Overage outlier removal method description",
-            "Window size": "Window size to train the autoregressive model on"
-        }
-    
-    def validate_fields(self):
-        if not self.entries['Window size'].text():
-            QMessageBox.warning(self, "Invalid Input", "Window size must be filled in")
-            return False
-        try:
-            tmp = int(self.entries['Window size'].text())
-        except Exception or tmp <= 0:
-            QMessageBox.warning(self, "Invalid Input", "Window size must be an integer > 0")
-            return False
-        if not self.naive_checkbox.isChecked() and not self.threshold_checkbox.isChecked() and not self.overage_checkbox.isChecked():
-            QMessageBox.warning(self, "Invalid Input", "No overage handling method is checked")
-            return False
-        
-        return True
-        
-    def go_back(self):
-        self.hide()
-        self.window().show_opening_screen()
-
-    def set_default_settings(self):
-        self.entries["Window size"].setText("3")
-
-        self.naive_checkbox.setChecked(False)
-        self.threshold_checkbox.setChecked(False)
-        self.overage_checkbox.setChecked(True)
-    
-    def save_settings(self):
-        if not self.validate_fields():
-            return
-        
-        param_dict = {}
-        param_dict['hemisphere'] = 'left'
-        for key, entry in self.entries.items():
-            if key == "Window size":
-                param_dict[key] = int(entry.text())
-            param_dict[key] = entry.text()
-
-        if self.naive_checkbox.isChecked():
-            param_dict['model'] = "naive"
-        
-        elif self.threshold_checkbox.isChecked():
-            param_dict['model'] = "SLOvER+"
-
-        elif self.overage_checkbox.isChecked():
-            param_dict['model'] = "OvER"
-        
-        try:
-            with open(resource_path("data/param.json"), 'w') as f:
-                json.dump(param_dict, f, indent=4)
-                f.close()
-        except Exception as e:
-            QMessageBox.critical(self, "Save Error", f"Failed to save settings: {e}")
-            return
-
-        self.hide()
-        self.window().show_opening_screen()
-
-    def init_bottom_buttons(self):
-        self.button_layout = QHBoxLayout()
-
-        self.back_button = QPushButton("Back", self)
-        self.back_button.clicked.connect(self.go_back)
-        self.button_layout.addWidget(self.back_button, alignment=Qt.AlignLeft | Qt.AlignBottom)
-
-        self.default_button = QPushButton("Reset to Default", self)
-        self.default_button.clicked.connect(self.set_default_settings)
-        self.button_layout.addWidget(self.default_button, alignment=Qt.AlignCenter | Qt.AlignBottom)
-
-        self.save_button = QPushButton("Save", self)
-        self.save_button.clicked.connect(self.save_settings)
-        self.button_layout.addWidget(self.save_button, alignment=Qt.AlignRight | Qt.AlignBottom)
-
-        self.layout.addLayout(self.button_layout)
-
-class PatientMenu(QWidget):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.parent = parent
-        self.field_order = [
-            "Patient ID",
-            "directory",
-            "dbs_date",
-            "response_status",
-            "response_date",
-            "disinhibited_dates"
-        ]
-        self.tooltips = self.get_tooltips()
-        self.initUI()
-
-    def initUI(self):
-        self.main_layout = QVBoxLayout(self)
-
-        self.table_layout = QVBoxLayout()
-        self.main_layout.addLayout(self.table_layout)
-
-        self.load_patients_table()
-        self.init_bottom_buttons()
-
-        self.setLayout(self.main_layout)
-
-    def load_patients_table(self):
-        self.table = QTableWidget(self)
-
-        patients = self.load_patient_data()
-        self.table.setRowCount(len(patients))
-        if len(patients) == 0:
-            return
-
-        display_fields = ["Patient ID", "Directory", "Response Status"]
-        display_keys = {"Directory": "directory", "Response Status": "response_status"}
-        display_response = {0: "Non-responder", 1: "Responder"}
-        self.table.setColumnCount(len(display_fields))
-        self.table.setHorizontalHeaderLabels(display_fields)
-
-        for row, patient in enumerate(patients.keys()):
-            for col, key in enumerate(display_fields):
-                if key == "Patient ID":
-                    self.table.setItem(row, col, QTableWidgetItem(patient))
-                elif key == "Response Status":
-                    response_status = display_response[patients[patient][display_keys[key]]]
-                    self.table.setItem(row, col, QTableWidgetItem(response_status))
-                else:
-                    self.table.setItem(row, col, QTableWidgetItem(patients[patient][display_keys[key]]))
-
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.table_layout.addWidget(self.table)
-
-
-    def load_patient_data(self):
-        if not os.path.exists(resource_path("data/patient_info.json")):
-            return {}
-        with open(resource_path("data/patient_info.json"), 'r') as f:
-            try:
-                return json.load(f)
-            except json.JSONDecodeError:
-                return {}
-
-    def go_back(self):
-        self.hide()
-        self.window().show_opening_screen()
-
-    def refresh_table(self):
-        # Remove existing table from layout
-        if hasattr(self, 'table'):
-            self.table_layout.removeWidget(self.table)
-            self.table.deleteLater()
-            self.table = None
-
-        self.load_patients_table()
-
-
-    def add_patient(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Add Patient")
-        layout = QVBoxLayout(dialog)
-
-        form_entries = {}
-
-        key_labels = {"Patient ID": "Patient ID",
-                      "directory": "Directory",
-                      "dbs_date": "DBS Date",
-                      "response_status": "Response Status",
-                      "response_date": "Response Date",
-                      "disinhibited_dates": "Disinhibited Dates"}
-
-        for key in self.field_order:
-            if key == "response_status":
-                hbox = QHBoxLayout()
-                label = QLabel(key_labels[key])
-                response_checkbox = QCheckBox("Responder")
-                non_response_checkbox = QCheckBox("Non-responder")
-
-                checkbox_group = QButtonGroup(dialog)
-                checkbox_group.setExclusive(True)
-                checkbox_group.addButton(response_checkbox)
-                checkbox_group.addButton(non_response_checkbox)
-
-                hbox.addWidget(label)
-                hbox.addWidget(response_checkbox)
-                hbox.addWidget(non_response_checkbox)
-                layout.addLayout(hbox)
-            elif key == "response_date":
-                response_date_layout = QHBoxLayout()
-                response_date_label = QLabel(key_labels[key])
-                response_date_entry = QLineEdit()
-                response_date_layout.addWidget(response_date_label)
-                response_date_layout.addWidget(response_date_entry)
-                layout.addLayout(response_date_layout)
-                # Hide initially
-                response_date_label.hide()
-                response_date_entry.hide()
-                response_date_entry.setToolTip(self.tooltips[key])
-            else:
-                hbox = QHBoxLayout()
-                label = QLabel(key_labels[key])
-                entry = QLineEdit()
-                hbox.addWidget(label)
-                hbox.addWidget(entry)
-                layout.addLayout(hbox)
-                form_entries[key] = entry
-                entry.setToolTip(self.tooltips[key])
-        
-        def toggle_response_checkbox():
-            if response_checkbox.isChecked():
-                response_date_label.show()
-                response_date_entry.show()
-        
-            if non_response_checkbox.isChecked():
-                response_date_label.hide()
-                response_date_entry.hide()
-
-        def save_and_close():
-            pt_dict = {}
-            patient = form_entries["Patient ID"].text()
-            pt_dict[patient] = {}
-            for key in self.field_order:
-                if key == "Patient ID":
-                    continue
-                if key == "response_status":
-                    pt_dict[patient][key] = 1 if response_checkbox.isChecked() else 0
-                elif key == "response_date":
-                    if response_checkbox.isChecked():
-                        pt_dict[patient][key] = response_date_entry.text()
-                elif key == "directory":
-                    pt_dict[patient][key] = form_entries[key].text()[1:-1]
-                else:
-                    if form_entries[key].text() == "":
-                        continue
-                    pt_dict[patient][key] = form_entries[key].text()
-
-            if not pt_dict[patient] or "directory" not in pt_dict[patient].keys():
-                QMessageBox.warning(dialog, "Validation Error", "Patient ID and Directory are required.")
-                return
-            
-            if not Path(pt_dict[patient]['directory']).is_dir():
-                QMessageBox.warning(dialog, "Validation Error", "Path is not a valid directory")
-                return
-
-            patients = self.load_patient_data()
-
-            if len(patients) > 0 and patient in patients.keys():
-                QMessageBox.warning(dialog, "Validation Error", "Patient ID is already in the app database")
-                return 
-            
-            if not gui_utils.validate_date(pt_dict[patient]['dbs_date']):
-                QMessageBox.warning(dialog, "Validation Error", "DBS activation date is required in YYYY-MM-DD format.")
-                return
-            
-            if response_checkbox.isChecked() and not gui_utils.validate_date(pt_dict[patient]['response_date']):
-                try:
-                    pt_dict[patient]['response_date'] = int(pt_dict[patient]['response_date'])
-                except Exception:
-                    QMessageBox.warning(dialog, "Validation Error", "Response date is required in YYYY-MM-DD format if patient is a responder.")
-                    return
-
-            patients.update(pt_dict)
-
-            with open(resource_path("data/patient_info.json"), 'w') as f:
-                json.dump(patients, f, indent=4)
-
-            dialog.accept()
-            self.refresh_table()
-            dialog.hide()
-
-        response_checkbox.stateChanged.connect(toggle_response_checkbox)
-        non_response_checkbox.stateChanged.connect(toggle_response_checkbox)
-
-        button_layout = QHBoxLayout()
-        save_button = QPushButton("Save")
-        save_button.clicked.connect(save_and_close)
-        cancel_button = QPushButton("Cancel")
-        cancel_button.clicked.connect(dialog.reject)
-        button_layout.addWidget(cancel_button)
-        button_layout.addWidget(save_button)
-        layout.addLayout(button_layout)
-
-        dialog.exec()
-
-    def delete_patient(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Delete Patient")
-        layout = QVBoxLayout(dialog)
-
-        if len(self.load_patient_data()) == 0:
-            QMessageBox.warning(dialog, "Validation Error", "No patients in the database to delete.")
-            return
-
-        layout.addWidget(QLabel("Enter Patient ID to delete:"))
-        patient_id_entry = QLineEdit()
-        layout.addWidget(patient_id_entry)
-
-        def delete_and_close():
-            patient_id = patient_id_entry.text().strip()
-            if not patient_id:
-                QMessageBox.warning(dialog, "Input Error", "Please enter a Patient ID.")
-                return
-
-            patients = self.load_patient_data()
-            
-            if patient_id not in patients.keys():
-                QMessageBox.warning(dialog, "Not Found", f"No patient found with ID: {patient_id}")
-                return
-
-            del patients[patient_id]
-            with open(resource_path("data/patient_info.json"), 'w') as f:
-                json.dump(patients, f, indent=4)
-
-            dialog.accept()
-            self.refresh_table()
-
-        button_layout = QHBoxLayout()
-        cancel_button = QPushButton("Cancel")
-        cancel_button.clicked.connect(dialog.reject)
-        delete_button = QPushButton("Delete")
-        delete_button.clicked.connect(delete_and_close)
-        button_layout.addWidget(cancel_button)
-        button_layout.addWidget(delete_button)
-
-        layout.addLayout(button_layout)
-
-        dialog.exec()
-
-    def init_bottom_buttons(self):
-        button_layout = QHBoxLayout()
-
-        back_button = QPushButton("Back", self)
-        back_button.clicked.connect(self.go_back)
-        button_layout.addWidget(back_button, alignment=Qt.AlignLeft)
-
-        delete_button = QPushButton("Delete patient", self)
-        delete_button.clicked.connect(self.delete_patient)
-        button_layout.addWidget(delete_button, alignment=Qt.AlignCenter)
-
-        add_button = QPushButton("Add patient", self)
-        add_button.clicked.connect(self.add_patient)
-        button_layout.addWidget(add_button, alignment=Qt.AlignRight)
-
-        self.main_layout.addLayout(button_layout)
-
-    def get_tooltips(self):
-        return {
-            "Patient ID": "Unique patient identifier.",
-            "directory": "Directory where patient data is stored wrapped in quotes (Tip: Use CTRL-SHIFT-C on a highlighted folder to copy the path to your clipboard).",
-            "dbs_date": "Initial DBS programming date (YYYY-MM-DD format).",
-            "response_status": "Responder status (Yes/No).",
-            "response_date": "Date the patient became a responder (Enter YYYY-MM-DD format or # of days post-DBS patient achieved response).",
-            "disinhibited_dates": "Dates the patient was disinhibited in [start date, end date] format (Enter dates in YYYY-MM-DD format or post-DBS day range patient was disinhibited)."
-        }
-
 class LoadingScreen(QWidget):
     def __init__(self, parent):
         super().__init__(parent)
@@ -861,12 +291,20 @@ class Plots(QWidget):
 
         self.update_json_fields(self.patients[index])
 
+        self.changes_checkbox = QCheckBox("Show Parameter Changes", self)
+        self.changes_checkbox.setChecked(False)
+        self.changes_checkbox.stateChanged.connect(self.plot_param_change)
+        self.json_layout.addWidget(self.changes_checkbox, alignment=Qt.AlignCenter | Qt.AlignBottom)
+
         self.export_button = QPushButton("Export LinAR R² feature", self)
         self.export_button.clicked.connect(self.export_data)
         self.json_layout.addWidget(self.export_button, alignment=Qt.AlignCenter | Qt.AlignBottom)
 
         self.json_fields_frame.setLayout(self.json_layout)
         self.content_layout.addWidget(self.json_fields_frame, 2)
+
+    def plot_param_change(self):
+        self.update_plot(self.curr_pt, HEMISPHERE, self.changes_checkbox.isChecked())
 
     def init_patient_selector(self, index):
         self.patient_selector = QComboBox(self)
@@ -930,18 +368,19 @@ class Plots(QWidget):
         patient = self.patients[index]
         self.curr_pt = patient
         self.update_json_fields(self.curr_pt)
-        self.update_plot(self.curr_pt)
+        self.update_plot(self.curr_pt, HEMISPHERE, self.changes_checkbox.isChecked())
 
     def on_hemisphere_change(self, index):
-        self.param_dict['hemisphere'] = index
-        self.update_plot(self.curr_pt)
+        HEMISPHERE = 'left' if index == 0 else 'right'
+        self.update_plot(self.curr_pt, HEMISPHERE, self.changes_checkbox.isChecked())
 
-    def update_plot(self, patient):
+    def update_plot(self, patient, hemisphere = 'left', show_changes=False):
         fig = plots.plot_metrics(
             df=self.df_final,
             patient=patient,
-            hemisphere=self.param_dict['hemisphere'],
-            changes_df=self.pt_changes_df
+            hemisphere=hemisphere,
+            changes_df=self.pt_changes_df,
+            show_changes=show_changes
         )
 
         self.current_plot = fig
@@ -974,7 +413,7 @@ if __name__ == "__main__":
     multiprocessing.freeze_support()
     #basedir = os.path.dirname(__file__)
     app = QApplication(sys.argv)
-    app.setWindowIcon(QIcon('Icon.ico'))
+    app.setWindowIcon(QIcon('icons/Icon.ico'))
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

@@ -1,5 +1,8 @@
 {
-    "hemisphere": 0,
+    "hemisphere": "left",
     "Window size": "3",
-    "model": "OvER"
+    "model": "OvER",
+    "delta": 0,
+    "ark": 0,
+    "lags": false
 }

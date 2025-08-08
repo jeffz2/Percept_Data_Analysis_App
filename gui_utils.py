@@ -4,6 +4,8 @@ import pandas as pd
 import plotly.io as pio
 import tempfile
 from PySide6.QtWidgets import QFileDialog
+import tkinter as tk
+from tkinter import filedialog
 
 DATE_FORMAT = '%Y-%m-%d'
 
@@ -76,3 +78,11 @@ def validate_date(date_str):
         return True
     except ValueError:
         return False
+
+def select_folder():
+    """Opens a dialog box for folder selection and returns the chosen path."""
+    root = tk.Tk()
+    root.withdraw()  # Hide the main Tkinter window
+    folder_path = filedialog.askdirectory(title="Select patient directory containing JSON files")
+    root.destroy()  # Destroy the root window after selection
+    return folder_path

@@ -11,6 +11,8 @@ from pathlib import Path
 from datetime import timedelta, datetime, date
 from datetime import time as dttime
 from zoneinfo import ZoneInfo
+import os
+import sys
 
 central_time = ZoneInfo('America/Chicago')
 
@@ -299,3 +301,20 @@ def fill_data(group_df, cols_to_fill, outlier_fill_method, offset_col='days_sinc
         all_new_cols.append(new_cols)
 
     return pd.concat(all_new_cols, axis=1)
+
+def get_sig_text(pval):
+    if pval < 0.0001:
+        return '****'
+    elif pval < 0.001:
+        return '***'
+    elif pval < 0.01:
+        return '**'
+    elif pval < 0.05:
+        return '*'
+    return "ns"
+
+def resource_path(relative_path):
+    # Works for development and PyInstaller
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)

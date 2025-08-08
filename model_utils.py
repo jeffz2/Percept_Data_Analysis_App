@@ -57,7 +57,7 @@ def predict_series_and_calc_R2_Kfold(group: pd.DataFrame, ar_features: list, gt_
     results_df[res_var_colname] = residuals.var()
     return results_df
 
-def predict_series_and_calc_R2_sliding_window(group: pd.DataFrame, ar_features: list, gt_colname: str, test_date: date, window_size: int=3, timestamp_col: str='CT_timestamp'):
+def predict_series_and_calc_R2_sliding_window(group: pd.DataFrame, ar_features: list, gt_colname: str, test_date: date, window_size: int=3, timestamp_col: str='CT_timestamp', threshold: float=2.5):
     """
     Fits autoregressive AR(1) model to data, then tests on a single day and returns predictions, daily R2 scores, prediction residuals, and residual variance.
 
@@ -68,6 +68,7 @@ def predict_series_and_calc_R2_sliding_window(group: pd.DataFrame, ar_features: 
     - test_date (date): The date to test the model on.
     - window_size (int): The size of the sliding window to use.
     - timestamp_col (str): The name of the column containing the timestamps in the group DataFrame.
+    - threshold (float): Threshold for residuals to calculate lambda, mu, and sigma stats.
     """
 
     all_dates = group[timestamp_col].dt.date
@@ -87,12 +88,26 @@ def predict_series_and_calc_R2_sliding_window(group: pd.DataFrame, ar_features: 
 
     results_df = pd.DataFrame(np.nan, index=test_df.index, columns=[preds_colname, residuals_colname, r2_colname, res_var_colname, sigma25_colname, mu0_colname, mu25_colname, lambda25_colname])
     
-    if unique_dates[-1] - unique_dates[0] != timedelta(days=window_size-1) or len(unique_dates) != window_size: # Skip non-contiguous days
+    if unique_dates[-1] - unique_dates[0] > timedelta(days=window_size) or len(unique_dates) < 2: # Skip non-contiguous days
         return results_df
     
-    train_df_no_na = train_df.dropna(subset=ar_features+[gt_colname])
-    test_df_no_na = test_df.dropna(subset=ar_features+[gt_colname])
-    if train_df_no_na.shape[0] < ((24 * 6) * (window_size - 2) + 1) or test_df_no_na.shape[0] < (24 * 6 // 2): # If we don't have enough data, just skip this day.
+    """ missing_lag_thresh = 0.4  # Adjust as needed
+
+    # Check full window (train + test)
+    combined_df = pd.concat([train_df, test_df])
+    missing_frac = combined_df[ar_features].isna().any(axis=1).mean()
+
+    if missing_frac > missing_lag_thresh:
+        # Too much missing data in lags for this window
+        return results_df """
+    
+    group_clean = group.copy()
+    group_clean[ar_features] = group_clean[ar_features].fillna(0)
+    window_df = group_clean.dropna(subset=ar_features + [gt_colname])
+    train_df_no_na = window_df[window_df[timestamp_col].dt.date != test_date]
+    test_df_no_na = window_df[window_df[timestamp_col].dt.date == test_date]
+
+    if train_df_no_na.shape[0] < 144 or test_df_no_na.shape[0] < (24 * 6 // 2): # If we don't have enough data, just skip this day.
         return results_df
 
     model = sm.OLS(train_df_no_na[gt_colname], train_df_no_na[ar_features]).fit()
@@ -104,14 +119,16 @@ def predict_series_and_calc_R2_sliding_window(group: pd.DataFrame, ar_features: 
     results_df.loc[test_df_no_na.index, preds_colname] = preds.values
 
     # Calculate daily R² and residuals from the predictions
-    residuals = results_df[preds_colname] - test_df[gt_colname]
-    results_df[residuals_colname] = residuals
+    residuals = preds - test_df_no_na[gt_colname]
+
+    results_df.loc[test_df_no_na.index, residuals_colname] = residuals
+
     results_df[r2_colname] = r2_score(test_df_no_na[gt_colname], results_df.loc[test_df_no_na.index, preds_colname])
     results_df[res_var_colname] = residuals.var()
-    results_df[sigma25_colname] = residuals[residuals>2.5].var()
+    results_df[sigma25_colname] = residuals[residuals>threshold].var()
     results_df[mu0_colname] = residuals.mean()
-    results_df[mu25_colname] = residuals[residuals>2.5].mean()
-    results_df[lambda25_colname] = residuals
+    results_df[mu25_colname] = residuals[residuals>threshold].mean()
+    results_df[lambda25_colname] = residuals[residuals>threshold].count()
     return results_df
 
 def apply_sliding_window(g, ar_features: list, gt_colname: str, window_size: int=3, causal=False):
@@ -139,9 +156,57 @@ def apply_sliding_window(g, ar_features: list, gt_colname: str, window_size: int
         date_mask = g['CT_timestamp'].dt.date.isin(date_list)
 
         window = g[date_mask]
+        if window.empty or window[gt_colname].dropna().empty:
+            continue
+        
         day_results = predict_series_and_calc_R2_sliding_window(window, ar_features, gt_colname, this_date, window_size)
         results.append(day_results)
+    
+    if len(results) == 0:
+        return 
+
     return pd.concat(results)
+
+def select_significant_lags_kfold(df, lag_features, target_col, n_splits=5, p_thresh=0.05, threshold=3):
+    df = df.dropna(subset=lag_features + [target_col])
+    if df.empty:
+        return []
+
+    kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+    pval_counts = {lag: 0 for lag in lag_features}
+
+    for train_idx, _ in kf.split(df):
+        train_data = df.iloc[train_idx]
+        X = train_data[lag_features]
+        y = train_data[target_col]
+        X = sm.add_constant(X)
+        model = sm.OLS(y, X).fit()
+        for lag in lag_features:
+            if lag in model.pvalues and model.pvalues[lag] < p_thresh:
+                pval_counts[lag] += 1
+
+    # Select lags significant in ≥half the folds
+    return [lag for lag, count in pval_counts.items() if count >= threshold]
+
+def drop_sparse_lags(df: pd.DataFrame, lag_features: list, threshold: float = 0.5) -> list:
+    """
+    Drop lag features that are more than `threshold` percent NaN.
+
+    Parameters:
+    - df: the DataFrame containing lag features
+    - lag_features: list of lag column names
+    - threshold: max allowed NaN fraction (e.g., 0.5 keeps features with ≥50% non-NaN)
+
+    Returns:
+    - A filtered list of lag features to keep
+    """
+    keep_lags = []
+    for col in lag_features:
+        valid_frac = df[col].notna().mean()
+        if valid_frac >= threshold:
+            keep_lags.append(col)
+    return keep_lags
+
 
 def leave_one_patient_out_logistic_regression(df: pd.DataFrame, feature_cols: Iterable, show_roc_curve: bool=True, show_conf_mat: bool=True,
                                               show_violin_plot: bool=True, colors: list=None) -> Tuple[Dict[str, Any], Dict[str, Any]]:
