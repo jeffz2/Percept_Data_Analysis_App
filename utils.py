@@ -11,6 +11,8 @@ from pathlib import Path
 from datetime import timedelta, datetime, date
 from datetime import time as dttime
 from zoneinfo import ZoneInfo
+import os
+import sys
 
 central_time = ZoneInfo('America/Chicago')
 
@@ -310,3 +312,9 @@ def get_sig_text(pval):
     elif pval < 0.05:
         return '*'
     return "ns"
+
+def resource_path(relative_path):
+    # Works for development and PyInstaller
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)

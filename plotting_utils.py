@@ -137,8 +137,38 @@ def plot_metrics(
                     ), row=1, col=1)
     fig.add_vline(x=patient_dict['dbs_date'], row=1, col=1, line_dash='dash', line_color='hotpink', line_width=5)
 
+    def get_change(values):
+        if isinstance(values[0], (int, float)):
+            return f"{values[0]} -> {values[1]}"
+        else:
+            return f"Contact {values[0][0].split('_')[-1][0]} -> Contact {values[1][0].split('_')[-1][0]}"
+
     if show_changes:
-        fig.add_vline(x=1)
+        for i, row in changes_df.iterrows():
+            row.dropna(inplace=True)
+            changes = row.drop(labels=[label for label in row.index if hemisphere not in label])
+            annotation = [f"{" ".join(changes.index[i].split('_')[1:])}: {get_change(changes.values[i])}" for i in range(len(changes))]
+
+            ts = pd.to_datetime(row['CT_timestamp'], errors='coerce')
+
+            if not pd.notnull(ts):            
+                continue
+
+            dt = ts.to_pydatetime()
+            fig.add_trace(
+                go.Scatter(
+                    x=[dt, dt],
+                    y=[-10, 10],
+                    mode='lines',
+                    line=dict(color='black', width=3, dash='dot'),
+                    hovertext=f"{ts}: {", ".join(annotation)}",
+                    hoverinfo="text",
+                    xaxis="x",
+                    yaxis="y",
+                    showlegend=False
+                ),
+                row=1, col=1
+            )
 
     #fig.add_trace(go.Scatter(x=linAR_t, y=pt_df.dropna(subset=[f'lfp_{hemisphere}_preds_{model}'])[f'lfp_{hemisphere}_preds_{model}'], mode='lines', name="Linear AR", line=dict(color=c_linAR, width=1.5), showlegend=False), row=1, col=1)                
     fig.update_yaxes(title_text="LFP (z-scored)", row=1, col=1, tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
@@ -178,6 +208,13 @@ def plot_metrics(
         ), row=2, col=1)
 
     fig.add_vline(x=0, row=2, col=1, line_dash='dash', line_color='hotpink', line_width=5)
+
+    if show_changes:
+        for i, row in changes_df.iterrows():
+            row.dropna(inplace=True)
+
+            day = row['days_since_dbs']
+            fig.add_vline(day, row=2, col=1, line_dash='dot', line_color='black', line_width=3)
 
     fig.update_yaxes(title_text="Linear AR R²", range=(-0.5, 1), row=2, col=1, tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
     fig.update_xaxes(title_text='Days Since DBS Activation', tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
@@ -258,7 +295,7 @@ def plot_metrics(
         ),
         dict(
             text=utils.get_sig_text(p_val),
-            x=0.95,
+            x=0.965,
             xref="paper",
             y=0.35,
             yref="paper",
@@ -312,7 +349,14 @@ def plot_metrics(
         name='DBS On',
         marker=dict(color='hotpink', symbol='square')
         ))
+    if show_changes:
+        fig.add_trace(go.Scatter(
+            x=[None], y=[None],
+            mode='markers',
+            name='Paramter Change',
+            marker=dict(color='black', symbol='square')
+            ))
     
-    fig.update_layout(annotations=annotations, legend=dict(x=1, y=0.5, xanchor="right", yanchor="middle"))
+    fig.update_layout(annotations=annotations, legend=dict(x=1, y=0.5, xanchor="right", yanchor="middle", font=dict(size=10), entrywidth=0.5, entrywidthmode='fraction', itemwidth=30))
 
     return fig
