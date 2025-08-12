@@ -6,9 +6,14 @@ The Percept Desktop App is designed to provide an intuitive user interface for r
 
 ## User Manual
 
-### Dependancies
+The app may be installed as an executable or run as a python script. To install the app, download and run the Percept_app_installer.exe found in releases. To run the app as a python script, clone this repository, and create an environment with all the required packages to run the app. Use the `app_win.py` script for Windows systems and the `app.py` script for MacOS systems.
+
+### Dependencies
 
 - All required packages for the app are in requirements.txt run on Python version 3.13.5
+- Run `conda create -n "env name" python=3.13.5` to create an environment using Anaconda/Miniconda
+- Enter the environment: `conda activate "env name"`
+- Install all required packages using: `pip install -r requirements.txt`
 
 ### General Workflow
 
