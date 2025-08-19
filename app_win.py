@@ -52,7 +52,7 @@ def worker_function(patient_dict, result_queue):
             try:
                 raw_df, param_changes = generate_raw.generate_raw(pt, patient_dict[pt])
 
-            except Exception as e:
+            except TypeError or ValueError as e:
                 print(f"Unable to retrieve data for pateint {pt}")
                 continue
 
