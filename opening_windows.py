@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout,
     QTextEdit, QProgressBar, QMessageBox, QCheckBox, QComboBox, QToolBar, QMainWindow,
-    QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QButtonGroup
+    QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QButtonGroup, QGroupBox, QFormLayout
 )
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtCore import Qt, QUrl, QTimer, QSize
@@ -93,7 +93,7 @@ class OpeningScreen(QWidget):
 
         doc_button = QAction(QIcon(resource_path("icons/doc_icon.ico")), "See GitHub documentation of the app", self)
         doc_button.setStatusTip("See GitHub Documentation of the app")
-        doc_button.triggered.connect(lambda: open_url("https://github.com/jeffz2/Percept_Data_Analysis_App/blob/percept_2025_dev/README.md"))
+        doc_button.triggered.connect(lambda: open_url("https://github.com/ProvenzaLab/Percept_Data_Analysis_App/blob/main/README.md"))
         toolbar.addAction(doc_button)
 
         help_button = QAction(QIcon(resource_path("icons/help_icon.ico")), "How to use the app", self)
@@ -153,122 +153,133 @@ class HelpMenu(QWidget):
         self.layout.addLayout(self.button_layout)
 
 class SettingsMenu(QWidget):
-    def __init__(self, parent):
+    def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.field_order = [
-            "Window size"
-        ]
-        self.fields = {
-            "Window size": 3
-        }
-        
+        self.field_order = ["Window size"]
+        self.fields = {"Window size": 3}
         self.tooltips = self.get_tooltips()
+
+        self.entries = {}
         self.initUI()
 
     def initUI(self):
-        self.layout = QVBoxLayout(self)
-        self.entries = {}
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
 
-        self.create_model_type_checkbox()
-        self.create_field_entries()
-        self.create_delta_checkbox()
-        self.create_ark_checkbox()
+        # Model type
+        layout.addWidget(self.create_model_type_group())
 
-        self.init_bottom_buttons()
-        self.setLayout(self.layout)
+        # Fields (window size, etc.)
+        layout.addWidget(self.create_fields_group())
 
-    def create_field_entries(self):
+        # Delta normalize
+        layout.addWidget(self.create_delta_group())
+
+        # AR(k) model
+        layout.addWidget(self.create_ark_group())
+
+        # Buttons
+        layout.addLayout(self.init_bottom_buttons())
+
+        self.setLayout(layout)
+
+    # ----------------------------
+    # Group creation methods
+    # ----------------------------
+
+    def create_fields_group(self):
+        group = QGroupBox("General Settings")
+        form = QFormLayout(group)
+
         for key in self.field_order:
             value = self.fields[key]
-            hbox = QHBoxLayout()
-            label = QLabel(key, self)
-            hbox.addWidget(label)
+            entry = QLineEdit(str(value), self)
+            entry.setToolTip(self.tooltips[key])
+            form.addRow(QLabel(key + ":"), entry)
+            self.entries[key] = entry
 
-            if isinstance(value, list):
-                self.create_list_field_entries(key, value, hbox)
-            else:
-                entry = QLineEdit(self)
-                entry.setText(str(value))
-                entry.setToolTip(self.tooltips[key])
-                hbox.addWidget(entry)
-                self.entries[key] = entry
+        return group
 
-            self.layout.addLayout(hbox)
+    def create_model_type_group(self):
+        group = QGroupBox("Model Type")
+        hbox = QHBoxLayout(group)
 
-    def create_list_field_entries(self, key, value, layout):
-        entry1 = QLineEdit(self)
-        entry1.setText(str(value[0]))
-        entry1.setToolTip(self.tooltips[key])
-        layout.addWidget(entry1)
-        self.entries[key] = (entry1)
-    
-    def create_model_type_checkbox(self):
-        dialog = QDialog(self)
-        
-        self.model_label = QLabel("Model Type ", self)
-        self.naive_checkbox = QCheckBox("Naive", self)
-        self.threshold_checkbox = QCheckBox("Threshold", self)
-        self.overage_checkbox = QCheckBox("Overage", self)
+        self.naive_checkbox = QCheckBox("Threshold", self)
+        self.threshold_checkbox = QCheckBox("Threshold + Interpolation", self)
+        self.overage_checkbox = QCheckBox("Overage Correction", self)
 
-        checkbox_group = QButtonGroup(dialog)
+        for cb, tt in [
+            (self.naive_checkbox, "Threshold"),
+            (self.threshold_checkbox, "Threshold + Interpolation"),
+            (self.overage_checkbox, "Overage Correction")
+        ]:
+            cb.setToolTip(self.tooltips[tt])
+
+        # Exclusive selection
+        checkbox_group = QButtonGroup(self)
         checkbox_group.setExclusive(True)
-        checkbox_group.addButton(self.naive_checkbox)
-        checkbox_group.addButton(self.threshold_checkbox)
-        checkbox_group.addButton(self.overage_checkbox)
-
-        self.naive_checkbox.setToolTip(self.tooltips["naive"])
-        self.threshold_checkbox.setToolTip(self.tooltips["threshold"])
-        self.overage_checkbox.setToolTip(self.tooltips["overage"])
+        for cb in [self.naive_checkbox, self.threshold_checkbox, self.overage_checkbox]:
+            checkbox_group.addButton(cb)
 
         self.overage_checkbox.setChecked(True)
 
-        model_layout = QHBoxLayout()
-        model_layout.addWidget(self.model_label)
-        model_layout.addWidget(self.naive_checkbox)
-        model_layout.addSpacing(15)
-        model_layout.addWidget(self.threshold_checkbox)
-        model_layout.addSpacing(15)
-        model_layout.addWidget(self.overage_checkbox)
-        model_layout.addStretch()
+        hbox.addWidget(self.naive_checkbox)
+        hbox.addWidget(self.threshold_checkbox)
+        hbox.addWidget(self.overage_checkbox)
+        hbox.addStretch()
 
-        self.layout.addLayout(model_layout)
-    
-    def create_delta_checkbox(self):
-        self.delta_label = QLabel("Delta Normalize R²")
-        self.delta_checkbox = QCheckBox()
-        self.delta_checkbox.setToolTip("Normalize R² value with pre-DBS average. Will revert to original R² values if no pre-DBS data is available.")
+        return group
 
-        self.delta_checkbox.setChecked(False)
+    def create_delta_group(self):
+        group = QGroupBox("Delta Normalization")
+        hbox = QHBoxLayout(group)
 
-        delta_layout = QHBoxLayout()
-        delta_layout.addWidget(self.delta_label)
-        delta_layout.addWidget(self.delta_checkbox)
+        self.delta_checkbox = QCheckBox("Delta normalize R² with pre-DBS average")
+        self.delta_checkbox.setToolTip(
+            "Normalize R² value with pre-DBS average. Will revert to original R² values if no pre-DBS data is available."
+        )
+        hbox.addWidget(self.delta_checkbox)
+        return group
 
-        self.layout.addLayout(delta_layout)
+    def create_ark_group(self):
+        group = QGroupBox("AR(k) Model")
+        form = QFormLayout(group)
 
-    def create_ark_checkbox(self):
-        self.ark_label = QLabel("AR(k) Model")
-        self.ark_checkbox = QCheckBox()
-        self.ark_checkbox.setToolTip("Use an AR(k) model to predict LFP data. Default model is an AR(1) model.")
-
-        self.lag_label = QLabel("Lags")
-        self.lag_entry = QLineEdit(self)
-        self.lag_entry.setText('144')
-
-        self.ark_checkbox.setChecked(False)
+        self.ark_checkbox = QCheckBox("Enable AR(k) model")
+        self.ark_checkbox.setToolTip("Use an AR(k) model to predict LFP data. Default model is AR(1).")
         self.ark_checkbox.stateChanged.connect(self.toggle_lags)
 
-        ark_layout = QHBoxLayout()
-        ark_layout.addWidget(self.ark_label)
-        ark_layout.addWidget(self.ark_checkbox)
-        ark_layout.addSpacing(15)
-        ark_layout.addWidget(self.lag_label)
-        ark_layout.addWidget(self.lag_entry)
+        self.lag_entry = QLineEdit("144", self)
+        self.lag_label = QLabel("Lags:")
+        form.addRow(self.ark_checkbox)
+        form.addRow(self.lag_label, self.lag_entry)
+
+        # Hide lag inputs by default
         self.lag_label.hide()
         self.lag_entry.hide()
+        return group
 
-        self.layout.addLayout(ark_layout)
+    def init_bottom_buttons(self):
+        button_layout = QHBoxLayout()
+
+        self.back_button = QPushButton("Back", self)
+        self.back_button.clicked.connect(self.go_back)
+
+        self.default_button = QPushButton("Reset to Default", self)
+        self.default_button.clicked.connect(self.set_default_settings)
+
+        self.save_button = QPushButton("Save", self)
+        self.save_button.clicked.connect(self.save_settings)
+
+        button_layout.addWidget(self.back_button, alignment=Qt.AlignLeft)
+        button_layout.addStretch()
+        button_layout.addWidget(self.default_button)
+        button_layout.addStretch()
+        button_layout.addWidget(self.save_button, alignment=Qt.AlignRight)
+
+        return button_layout
 
     def toggle_lags(self):
         if self.ark_checkbox.isChecked():
@@ -280,9 +291,9 @@ class SettingsMenu(QWidget):
 
     def get_tooltips(self):
         return {
-            "naive": "Naive outlier removal method description",
-            "threshold": "Threshold outlier removal method description",
-            "overage": "Overage outlier removal method description",
+            "Threshold": "Identifies and removes all values that include at least one overvolage reading",
+            "Threshold + Interpolation": "Interpolate thresholded data using PCHIP for windows < 12 samples",
+            "Overage Correction": "Overage event correction and recalculation for overvoltage events (Recommended)",
             "Window size": "Window size to train the autoregressive model on"
         }
     
@@ -356,20 +367,3 @@ class SettingsMenu(QWidget):
 
         self.hide()
         self.window().show_opening_screen()
-
-    def init_bottom_buttons(self):
-        self.button_layout = QHBoxLayout()
-
-        self.back_button = QPushButton("Back", self)
-        self.back_button.clicked.connect(self.go_back)
-        self.button_layout.addWidget(self.back_button, alignment=Qt.AlignLeft | Qt.AlignBottom)
-
-        self.default_button = QPushButton("Reset to Default", self)
-        self.default_button.clicked.connect(self.set_default_settings)
-        self.button_layout.addWidget(self.default_button, alignment=Qt.AlignCenter | Qt.AlignBottom)
-
-        self.save_button = QPushButton("Save", self)
-        self.save_button.clicked.connect(self.save_settings)
-        self.button_layout.addWidget(self.save_button, alignment=Qt.AlignRight | Qt.AlignBottom)
-
-        self.layout.addLayout(self.button_layout)

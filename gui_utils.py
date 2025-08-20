@@ -10,6 +10,21 @@ DATE_FORMAT = '%Y-%m-%d'
 def add_extension(filename, extension):
     return filename if filename.lower().endswith(extension.lower()) else filename + extension
 
+def save_raw_data(data, filename):
+    ext = filename.split('.')[-1].lower()
+    if ext == 'json':
+        data.to_json(filename, orient='records', lines=True)
+    elif ext == 'xlsx':
+        data.to_excel(filename, index=False)
+    elif ext == 'tsv':
+        data.to_csv(filename, sep='\t', index=False)
+    elif ext == 'txt':
+        with open(filename, 'w') as f:
+            f.write(data.to_string(index=False))
+    else:
+        filename = add_extension(filename, '.csv')
+        data.to_csv(filename, index=False)
+
 def save_lin_ar_feature(df, filename, param_dict):
     model = param_dict['model']
     hemisphere = 'left' if param_dict['hemisphere'] == 0 else 'right'

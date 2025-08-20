@@ -316,7 +316,7 @@ class Plots(QWidget):
         self.json_layout.addWidget(self.json_text)
 
         # Legend
-        self.legend = QGraphicsScene(self)
+        self.legend = QGraphicsScene()
         self.legend.setBackgroundBrush(QBrush("#FFFFFF"))
         self.legend_view = QGraphicsView(self.legend)
         self.legend_view.setSceneRect(0, 0, 200, 200)
@@ -371,6 +371,10 @@ class Plots(QWidget):
         self.back_button = QPushButton("Back", self)
         self.back_button.clicked.connect(self.go_back)
         self.button_layout.addWidget(self.back_button, alignment=Qt.AlignLeft)
+
+        self.data_export_button = QPushButton("Export Raw Data", self)
+        self.data_export_button.clicked.connect(self.export_raw)
+        self.button_layout.addWidget(self.data_export_button, alignment=Qt.AlignCenter)
 
         self.download_button = QPushButton("Download plot", self)
         self.download_button.clicked.connect(self.download_image)
@@ -464,6 +468,12 @@ class Plots(QWidget):
             gui_utils.save_plot(self.current_plot, file_path)
         else:
             QMessageBox.warning(self, "Error", "No plot is available to save.")
+    
+    def export_raw(self):
+        file_path = gui_utils.open_save_dialog(self, "Save Raw Data", "")
+        if file_path:
+            data = self.df_final.qurey('pt_id == @self.curr_pt')
+            gui_utils.save_raw_data(data, file_path)
 
     def export_data(self):
         file_path = gui_utils.open_save_dialog(self, "Save Data", "")

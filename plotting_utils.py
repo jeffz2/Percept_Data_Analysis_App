@@ -51,6 +51,12 @@ def plot_metrics(
     days = pt_daily_df['days_since_dbs']
     linAR_R2 = pt_daily_df[f'lfp_{hemisphere}_day_r2_{model}']
 
+    if delta:
+        if pt_df.query('days_since_dbs < 0').empty:
+            pass
+        pt_daily_df[f'lfp_{hemisphere}_day_r2_{model}'] -= np.nanmean(pt_daily_df.query('days_since_dbs < 0')[f'lfp_{hemisphere}_day_r2_{model}'])
+        linAR_R2 = pt_daily_df[f'lfp_{hemisphere}_day_r2_{model}']
+
     # Identify discontinuities in the days array
     start_index = np.where(np.diff(days) > 7)[0] + 1
     start_index = np.concatenate(([0], start_index, [len(days)]))
@@ -133,15 +139,21 @@ def plot_metrics(
     fig.add_vline(x=patient_dict['dbs_date'], row=1, col=1, line_dash='dash', line_color='hotpink', line_width=5)
 
     def get_change(values):
-        if isinstance(values[0], (int, float)):
+        if isinstance(values[0], (int, float)) and isinstance(values[1], (int, float)):
             return f"{values[0]} -> {values[1]}"
+        elif isinstance(values[0], (int, float)) and values[1] is None:
+            return f"{values[0]} -> Off"
+        elif values[0] is None and isinstance(values[1], (int, float)):
+            return f"Off -> {values[1]}"
         else:
-            return f"Contact {values[0][0].split('_')[-1][0]} -> Contact {values[1][0].split('_')[-1][0]}"
+            return f"Contact {values[0][0].split('_')[-1][0] if values[0] is not None else 'Off'} -> Contact {values[1][0].split('_')[-1][0] if values[1] is not None else 'Off'}"
 
     if show_changes:
         pt_changes = changes_df.query('pt_id == @patient')
         for i, row in pt_changes.iterrows():
             row.dropna(inplace=True)
+            if row.days_since_dbs == 0 or pt_df.query('days_since_dbs == @row.days_since_dbs')[f'stim_{hemisphere}'].isna().all():
+                continue
             changes = row.drop(labels=[label for label in row.index if hemisphere not in label])
             annotation = [f"{" ".join(changes.index[i].split('_')[1:])}: {get_change(changes.values[i])}" for i in range(len(changes))]
 
@@ -170,9 +182,6 @@ def plot_metrics(
     fig.update_yaxes(title_text="LFP (z-scored)", row=1, col=1, tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
     fig.update_xaxes(title_text="Date (CT)", tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
 
-     # Linear AR R² Over Time
-    if delta:
-        linAR_R2 = reg.delta_model(linAR_R2, [], patient)
     for i in range(len(start_index) - 1):
         segment_days = days.values[start_index[i]+1:start_index[i+1]]
         segment_linAR_R2 = linAR_R2.values[start_index[i]+1:start_index[i+1]]
@@ -191,9 +200,9 @@ def plot_metrics(
     for color in color_dict.keys():
         if color not in pt_df['state_label'].values:
             continue    
-        state_df = pt_df.query('state_label == @color')
-        state_days = state_df.drop_duplicates(subset=['days_since_dbs'])['days_since_dbs']
-        state_r2 = state_df.drop_duplicates(subset=['days_since_dbs'])[f'lfp_{hemisphere}_day_r2_{model}']
+        state_df = pt_daily_df.query('state_label == @color')
+        state_days = state_df['days_since_dbs']
+        state_r2 = state_df[f'lfp_{hemisphere}_day_r2_{model}']
 
         fig.add_trace(go.Scatter(
             x=state_days,
@@ -210,14 +219,16 @@ def plot_metrics(
             row.dropna(inplace=True)
 
             day = row['days_since_dbs']
+            if day == 0 or pt_daily_df.query('days_since_dbs == @day')[f'lfp_{hemisphere}_day_r2_{model}'].isna().all():
+                continue
             fig.add_vline(day, row=2, col=1, line_dash='dot', line_color='black', line_width=3)
 
-    fig.update_yaxes(title_text="Linear AR R²", range=(-0.5, 1), row=2, col=1, tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
+    fig.update_yaxes(title_text="Linear AR R²", range=(-1, 0.5) if delta else (-0.5, 1), row=2, col=1, tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
     fig.update_xaxes(title_text='Days Since DBS Activation', tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
     
     # Linear AR R² Violin Plot
     VIOLIN_WIDTH = 7.0
-    violin_df = pt_df.drop_duplicates(subset=['days_since_dbs']).dropna(subset=[f'lfp_{hemisphere}_day_r2_{model}'])
+    violin_df = pt_daily_df.dropna(subset=[f'lfp_{hemisphere}_day_r2_{model}'])
     fig.add_trace(go.Violin(
             y=violin_df.query('state_label == 0')[f'lfp_{hemisphere}_day_r2_{model}'],
             name='', 
@@ -256,7 +267,7 @@ def plot_metrics(
             meanline=dict(color='black', width=2)
         ), row=2, col=4)
 
-    fig.update_yaxes(range=(-0.5, 1), row=2, col=4, tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
+    fig.update_yaxes(range=(-1, 0.5) if delta else (-0.5, 1), row=2, col=4, tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
     fig.update_xaxes(title_text=f"t = {np.round(t_val, 3)}",row=2, col=4,tickfont=dict(color=axis_title_font_color), titlefont=dict(color=axis_title_font_color), showline=True, linecolor=axis_line_color)
     # Set overall layout aesthetics
     fig.update_layout(
@@ -293,7 +304,7 @@ def plot_metrics(
             text=utils.get_sig_text(p_val),
             x=0.965,
             xref="paper",
-            y=0.35,
+            y=0.3 if delta else 0.35,
             yref="paper",
             showarrow=False,
             font=dict(size=14, color=title_font_color, family="Helvetica")
