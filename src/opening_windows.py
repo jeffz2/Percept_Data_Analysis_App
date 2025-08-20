@@ -1,7 +1,25 @@
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout,
-    QTextEdit, QProgressBar, QMessageBox, QCheckBox, QComboBox, QToolBar, QMainWindow,
-    QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QButtonGroup, QGroupBox, QFormLayout
+    QApplication,
+    QWidget,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
+    QHBoxLayout,
+    QTextEdit,
+    QProgressBar,
+    QMessageBox,
+    QCheckBox,
+    QComboBox,
+    QToolBar,
+    QMainWindow,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
+    QDialog,
+    QButtonGroup,
+    QGroupBox,
+    QFormLayout,
 )
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtCore import Qt, QUrl, QTimer, QSize
@@ -9,7 +27,8 @@ from PySide6.QtGui import QDesktopServices
 import sys
 import os
 import json
-from utils import resource_path
+from utils.utils import resource_path
+
 
 class OpeningScreen(QWidget):
     def __init__(self, parent):
@@ -22,33 +41,40 @@ class OpeningScreen(QWidget):
 
         self.welcome_label = QLabel("Welcome to the Percept Data Analysis App", self)
         self.welcome_label.setAlignment(Qt.AlignCenter)
-        self.welcome_label.setStyleSheet("""
+        self.welcome_label.setStyleSheet(
+            """
             QLabel {
                 font-size: 25px;
                 font-family: 'Arial', sans-serif;
                 color: #ffffff;
                 padding: 10px;
             }
-        """)
+        """
+        )
         self.layout.addWidget(self.welcome_label)
 
         self.description_label = QLabel(
-            'This application helps you process and analyze Medtronic percept data.<br>'
-            'Please proceed to start the data processing.<br><br>'
-            'Developed by the Provenza Lab', self)
+            "This application helps you process and analyze Medtronic percept data.<br>"
+            "Please proceed to start the data processing.<br><br>"
+            "Developed by the Provenza Lab",
+            self,
+        )
         self.description_label.setAlignment(Qt.AlignCenter)
-        self.description_label.setStyleSheet("""
+        self.description_label.setStyleSheet(
+            """
             QLabel {
                 font-size: 16px;
                 font-family: 'Arial', sans-serif;
                 color: #ffffff;
                 padding: 20px;
             }
-        """)
+        """
+        )
         self.layout.addWidget(self.description_label)
 
         self.proceed_button = QPushButton("Start Data Processing", self)
-        self.proceed_button.setStyleSheet("""
+        self.proceed_button.setStyleSheet(
+            """
             QPushButton {
                 background-color: #1e90ff;
                 color: white;
@@ -60,12 +86,14 @@ class OpeningScreen(QWidget):
             QPushButton:hover {
                 background-color: #1c86ee;
             }
-        """)
+        """
+        )
         self.proceed_button.clicked.connect(self.proceed)
         self.layout.addWidget(self.proceed_button, alignment=(Qt.AlignHCenter))
 
         self.patient_menu_button = QPushButton("Add Patients", self)
-        self.patient_menu_button.setStyleSheet("""
+        self.patient_menu_button.setStyleSheet(
+            """
             QPushButton {
                 background-color: #1e90ff;
                 color: white;
@@ -77,8 +105,9 @@ class OpeningScreen(QWidget):
             QPushButton:hover {
                 background-color: #1c86ee;
             }
-        """)
-        
+        """
+        )
+
         self.patient_menu_button.clicked.connect(self.parent.show_patient_menu)
         self.layout.addWidget(self.patient_menu_button, alignment=(Qt.AlignHCenter))
 
@@ -91,17 +120,29 @@ class OpeningScreen(QWidget):
         toolbar.setIconSize(QSize(30, 30))
         self.layout.addWidget(toolbar)
 
-        doc_button = QAction(QIcon(resource_path("icons/doc_icon.ico")), "See GitHub documentation of the app", self)
+        doc_button = QAction(
+            QIcon(resource_path("icons/doc_icon.ico")),
+            "See GitHub documentation of the app",
+            self,
+        )
         doc_button.setStatusTip("See GitHub Documentation of the app")
-        doc_button.triggered.connect(lambda: open_url("https://github.com/ProvenzaLab/Percept_Data_Analysis_App/blob/main/README.md"))
+        doc_button.triggered.connect(
+            lambda: open_url(
+                "https://github.com/ProvenzaLab/Percept_Data_Analysis_App/blob/main/README.md"
+            )
+        )
         toolbar.addAction(doc_button)
 
-        help_button = QAction(QIcon(resource_path("icons/help_icon.ico")), "How to use the app", self)
+        help_button = QAction(
+            QIcon(resource_path("icons/help_icon.ico")), "How to use the app", self
+        )
         help_button.setStatusTip("For a step-by-step guide to use the app")
         help_button.triggered.connect(self.parent.show_help_menu)
         toolbar.addAction(help_button)
 
-        settings_button = QAction(QIcon(resource_path("icons/settings_icon.ico")), "Processing settings", self)
+        settings_button = QAction(
+            QIcon(resource_path("icons/settings_icon.ico")), "Processing settings", self
+        )
         settings_button.setStatusTip("Processing settings")
         settings_button.triggered.connect(self.parent.show_settings_menu)
         toolbar.addAction(settings_button)
@@ -109,30 +150,35 @@ class OpeningScreen(QWidget):
     def proceed(self):
         if not os.path.exists(resource_path("data/patient_info.json")):
             return WindowsError
-        with open(resource_path("data/patient_info.json"), 'r') as f:
+        with open(resource_path("data/patient_info.json"), "r") as f:
             try:
                 patient_dict = json.load(f)
             except json.JSONDecodeError:
-                QMessageBox.warning(self, "Validation Error", "No patient data is stored")
+                QMessageBox.warning(
+                    self, "Validation Error", "No patient data is stored"
+                )
                 return
         if len(patient_dict) == 0:
             QMessageBox.warning(self, "Validation Error", "No patient data is stored")
-            return 
+            return
         self.parent.show_loading_screen(patient_dict)
+
 
 class HelpMenu(QWidget):
     def __init__(self, parent):
         super().__init__(parent)
-        
+
         self.initUI()
 
     def initUI(self):
         self.layout = QVBoxLayout(self)
 
         self.help_label = QLabel(
-            'Write a step-by-step guide to use the app.<br>'
-            'Step 1: Add patients with dbs on date, folder containing the data, and responder status.<br><br>'
-            'Step 2: Do the data processing and see results', self)
+            "Write a step-by-step guide to use the app.<br>"
+            "Step 1: Add patients with dbs on date, folder containing the data, and responder status.<br><br>"
+            "Step 2: Do the data processing and see results",
+            self,
+        )
         self.help_label.setAlignment(Qt.AlignCenter)
         self.layout.addWidget(self.help_label)
 
@@ -148,9 +194,12 @@ class HelpMenu(QWidget):
 
         self.back_button = QPushButton("Back", self)
         self.back_button.clicked.connect(self.go_back)
-        self.button_layout.addWidget(self.back_button, alignment=Qt.AlignLeft | Qt.AlignBottom)
+        self.button_layout.addWidget(
+            self.back_button, alignment=Qt.AlignLeft | Qt.AlignBottom
+        )
 
         self.layout.addLayout(self.button_layout)
+
 
 class SettingsMenu(QWidget):
     def __init__(self, parent=None):
@@ -213,7 +262,7 @@ class SettingsMenu(QWidget):
         for cb, tt in [
             (self.naive_checkbox, "Threshold"),
             (self.threshold_checkbox, "Threshold + Interpolation"),
-            (self.overage_checkbox, "Overage Correction")
+            (self.overage_checkbox, "Overage Correction"),
         ]:
             cb.setToolTip(self.tooltips[tt])
 
@@ -248,7 +297,9 @@ class SettingsMenu(QWidget):
         form = QFormLayout(group)
 
         self.ark_checkbox = QCheckBox("Enable AR(k) model")
-        self.ark_checkbox.setToolTip("Use an AR(k) model to predict LFP data. Default model is AR(1).")
+        self.ark_checkbox.setToolTip(
+            "Use an AR(k) model to predict LFP data. Default model is AR(1)."
+        )
         self.ark_checkbox.stateChanged.connect(self.toggle_lags)
 
         self.lag_entry = QLineEdit("144", self)
@@ -294,29 +345,39 @@ class SettingsMenu(QWidget):
             "Threshold": "Identifies and removes all values that include at least one overvolage reading",
             "Threshold + Interpolation": "Interpolate thresholded data using PCHIP for windows < 12 samples",
             "Overage Correction": "Overage event correction and recalculation for overvoltage events (Recommended)",
-            "Window size": "Window size to train the autoregressive model on"
+            "Window size": "Window size to train the autoregressive model on",
         }
-    
+
     def validate_fields(self):
-        if not self.entries['Window size'].text():
+        if not self.entries["Window size"].text():
             QMessageBox.warning(self, "Invalid Input", "Window size must be filled in")
             return False
         try:
-            tmp = int(self.entries['Window size'].text())
+            tmp = int(self.entries["Window size"].text())
         except Exception or tmp <= 0:
-            QMessageBox.warning(self, "Invalid Input", "Window size must be an integer > 0")
+            QMessageBox.warning(
+                self, "Invalid Input", "Window size must be an integer > 0"
+            )
             return False
-        if not self.naive_checkbox.isChecked() and not self.threshold_checkbox.isChecked() and not self.overage_checkbox.isChecked():
-            QMessageBox.warning(self, "Invalid Input", "No overage handling method is checked")
+        if (
+            not self.naive_checkbox.isChecked()
+            and not self.threshold_checkbox.isChecked()
+            and not self.overage_checkbox.isChecked()
+        ):
+            QMessageBox.warning(
+                self, "Invalid Input", "No overage handling method is checked"
+            )
             return False
         if self.ark_checkbox.isChecked():
             try:
                 tmp = int(self.lag_entry.text())
             except Exception or tmp <= 0:
-                QMessageBox.warning(self, "Invalid Input", "Lags must an integer greater than 0")
+                QMessageBox.warning(
+                    self, "Invalid Input", "Lags must an integer greater than 0"
+                )
                 return
         return True
-        
+
     def go_back(self):
         self.hide()
         self.window().show_opening_screen()
@@ -330,35 +391,37 @@ class SettingsMenu(QWidget):
 
         self.delta_checkbox.setChecked(False)
         self.ark_checkbox.setChecked(False)
-    
+
     def save_settings(self):
         if not self.validate_fields():
             return
-        
+
         param_dict = {}
-        param_dict['hemisphere'] = 'left'
+        param_dict["hemisphere"] = "left"
         for key, entry in self.entries.items():
             if key == "Window size":
                 param_dict[key] = int(entry.text())
             param_dict[key] = entry.text()
 
         if self.naive_checkbox.isChecked():
-            param_dict['model'] = "naive"
-        
+            param_dict["model"] = "naive"
+
         elif self.threshold_checkbox.isChecked():
-            param_dict['model'] = "SLOvER+"
+            param_dict["model"] = "SLOvER+"
 
         elif self.overage_checkbox.isChecked():
-            param_dict['model'] = "OvER"
-        
-        param_dict['delta'] = 1 if self.delta_checkbox.isChecked() else 0
+            param_dict["model"] = "OvER"
 
-        param_dict['ark'] = 1 if self.ark_checkbox.isChecked() else 0
+        param_dict["delta"] = 1 if self.delta_checkbox.isChecked() else 0
 
-        param_dict['lags'] = int(self.lag_entry.text()) if self.ark_checkbox.isChecked() else False
+        param_dict["ark"] = 1 if self.ark_checkbox.isChecked() else 0
+
+        param_dict["lags"] = (
+            int(self.lag_entry.text()) if self.ark_checkbox.isChecked() else False
+        )
 
         try:
-            with open(resource_path("data/param.json"), 'w') as f:
+            with open(resource_path("data/param.json"), "w") as f:
                 json.dump(param_dict, f, indent=4)
                 f.close()
         except Exception as e:

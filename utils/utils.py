@@ -14,7 +14,8 @@ from zoneinfo import ZoneInfo
 import os
 import sys
 
-central_time = ZoneInfo('America/Chicago')
+central_time = ZoneInfo("America/Chicago")
+
 
 def daily_operation(group, cols_to_operate, new_col_names, operation=pd.Series.var):
     new_df = pd.DataFrame(index=group.index, columns=new_col_names)
@@ -22,7 +23,8 @@ def daily_operation(group, cols_to_operate, new_col_names, operation=pd.Series.v
         new_df[new_col] = operation(group[col])
     return new_df
 
-def zscore_group(group, cols_to_zscore=['lfp_left_raw', 'lfp_right_raw']):
+
+def zscore_group(group, cols_to_zscore=["lfp_left_raw", "lfp_right_raw"]):
     """
     Calculate Z-scored version of specified data.
 
@@ -36,34 +38,39 @@ def zscore_group(group, cols_to_zscore=['lfp_left_raw', 'lfp_right_raw']):
     new_cols = {}
     for col in cols_to_zscore:
         # Write new column name for easy merging later.
-        if '_raw' in col:
-            zscored_col_name = col.replace('_raw', '_z_scored')
-        elif '_filled' in col:
-            zscored_col_name = col.replace('_filled', '_z_scored')
+        if "_raw" in col:
+            zscored_col_name = col.replace("_raw", "_z_scored")
+        elif "_filled" in col:
+            zscored_col_name = col.replace("_filled", "_z_scored")
         else:
-            zscored_col_name = col + '_z_scored'
+            zscored_col_name = col + "_z_scored"
 
         if pd.notna(group[col]).sum() > 1:
             # Z-score data: for each data point, subtract mean and divide by standard deviation of entire series.
             mean = np.nanmean(group[col], axis=0)
             std = np.nanstd(group[col], axis=0, ddof=1)
-            new_cols[zscored_col_name] = (group[col] - mean) / std if std != 0 else [np.nan] * len(group[col])
+            new_cols[zscored_col_name] = (
+                (group[col] - mean) / std if std != 0 else [np.nan] * len(group[col])
+            )
         else:
             # If all values are none, return np.nan
             new_cols[zscored_col_name] = [np.nan] * len(group)
-    
+
     # Create new dataframe containing only the new Z-scored columns and return it. Keep the same indices as the input group for easy merging.
     return pd.DataFrame(new_cols, index=group.index)
 
-def correct_timestamps(group, timestamp_col='timestamp', threshold=pd.Timedelta(minutes=10, seconds=1)):
+
+def correct_timestamps(
+    group, timestamp_col="timestamp", threshold=pd.Timedelta(minutes=10, seconds=1)
+):
     """
     Adjust timestamps in each group where intervals are off by one second.
-    
+
     Parameters:
     - group: DataFrame containing a column with timestamps.
     - timestamp_col: Name of the dataframe column containing the timestamp.
     - threshold: Maximum expected time difference for a 10-minute interval (default: 10:01).
-    
+
     Returns:
     - Timestamp column with corrected timestamps.
     """
@@ -73,11 +80,14 @@ def correct_timestamps(group, timestamp_col='timestamp', threshold=pd.Timedelta(
     correction_mask = time_diff == threshold
     reset_mask = time_diff > threshold
     correction_groups = reset_mask.cumsum()
-    correction = correction_mask.groupby(correction_groups).cumsum() * -pd.Timedelta(seconds=1)
+    correction = correction_mask.groupby(correction_groups).cumsum() * -pd.Timedelta(
+        seconds=1
+    )
 
     return pd.DataFrame(timestamps + correction)
 
-def get_contig(group, col_to_check, contig_colname, time_bin_col='time_bin'):
+
+def get_contig(group, col_to_check, contig_colname, time_bin_col="time_bin"):
     """
     Label each row in a contiguous series with the same number, and return a DataFrame containing those labels.
     Contiguous data is a series of data where each data point is separated by ~10 minutes (with margin of error 1 second either direction).
@@ -98,11 +108,12 @@ def get_contig(group, col_to_check, contig_colname, time_bin_col='time_bin'):
     group = group.sort_values(time_bin_col)
 
     time_diff = group[time_bin_col].diff()
-    contig = (time_diff != timedelta(minutes=10)).cumsum()-1
+    contig = (time_diff != timedelta(minutes=10)).cumsum() - 1
 
-    return pd.DataFrame({contig_colname: contig}, index=group.index, dtype='Int64')
+    return pd.DataFrame({contig_colname: contig}, index=group.index, dtype="Int64")
 
-def fill_holes(group, lead_location, time_bin_col='time_bin', dbs_on_date=None):
+
+def fill_holes(group, lead_location, time_bin_col="time_bin", dbs_on_date=None):
     """
     Fills in dataframe holes so that all missing time bins contain NaN. Useful for interpolation later.
 
@@ -120,33 +131,49 @@ def fill_holes(group, lead_location, time_bin_col='time_bin', dbs_on_date=None):
     gap_sizes = (np.diff(group[time_bin_col]) // timedelta(minutes=10)).astype(int)
     small_gap_start_inds = np.where(gap_sizes >= 2)[0]
     gap_sizes = gap_sizes[small_gap_start_inds]
-    
+
     # Get the last time bin timestamp before each unfilled data gap so we know where to start filling from.
     gap_start_times = group.loc[group.index[small_gap_start_inds], time_bin_col]
-    times_to_fill = [gap_start_time + timedelta(minutes=10) * i for (gap_start_time, gap_size) in zip(gap_start_times, gap_sizes) for i in range(1, gap_size)]
-    
+    times_to_fill = [
+        gap_start_time + timedelta(minutes=10) * i
+        for (gap_start_time, gap_size) in zip(gap_start_times, gap_sizes)
+        for i in range(1, gap_size)
+    ]
+
     # Create new dataframe and fill in information in relevant columns.
     if len(times_to_fill) != 0:
         interp_df = pd.DataFrame()
-        interp_df['timestamp'] = times_to_fill # Timestamp is set to time bin
-        interp_df[time_bin_col] = times_to_fill # Time bin is where the data was not recorded/missing from the device.
-        interp_df['CT_timestamp'] = interp_df['timestamp'].dt.tz_convert(central_time)
+        interp_df["timestamp"] = times_to_fill  # Timestamp is set to time bin
+        interp_df[time_bin_col] = (
+            times_to_fill  # Time bin is where the data was not recorded/missing from the device.
+        )
+        interp_df["CT_timestamp"] = interp_df["timestamp"].dt.tz_convert(central_time)
         if dbs_on_date is not None:
-            interp_df['days_since_dbs'] = [dt.days for dt in (interp_df['CT_timestamp'].dt.date - dbs_on_date)]
-        interp_df['lead_location'] = lead_location # Use same lead model and location as original df.
-        interp_df['lead_model'] = np.repeat(group.loc[group.index[small_gap_start_inds], 'lead_model'].values, gap_sizes-1)
-        interp_df['source_file'] = 'interp' # Denote filled rows as interpolated so we know they aren't real data.
-        interp_df['interpolated'] = True
+            interp_df["days_since_dbs"] = [
+                dt.days for dt in (interp_df["CT_timestamp"].dt.date - dbs_on_date)
+            ]
+        interp_df["lead_location"] = (
+            lead_location  # Use same lead model and location as original df.
+        )
+        interp_df["lead_model"] = np.repeat(
+            group.loc[group.index[small_gap_start_inds], "lead_model"].values,
+            gap_sizes - 1,
+        )
+        interp_df["source_file"] = (
+            "interp"  # Denote filled rows as interpolated so we know they aren't real data.
+        )
+        interp_df["interpolated"] = True
         return interp_df
+
 
 def fill_outliers(data: np.ndarray, threshold_factor: int = 30) -> np.ndarray:
     """
     Replace outliers in the data with interpolated values using PCHIP interpolation.
-    
+
     Parameters:
         data (np.ndarray): Input data array with potential outliers.
         threshold_factor (int, optional): Factor to define the threshold for outliers. Default is 30.
-    
+
     Returns:
         np.ndarray: Data array with outliers filled.
     """
@@ -165,14 +192,17 @@ def fill_outliers(data: np.ndarray, threshold_factor: int = 30) -> np.ndarray:
     corrected_data[outliers] = interpolator(np.where(outliers)[0])
     return corrected_data
 
-def fill_outliers_threshold(data: np.ndarray, threshold: float=((2**32)-1)/60) -> np.ndarray:
+
+def fill_outliers_threshold(
+    data: np.ndarray, threshold: float = ((2**32) - 1) / 60
+) -> np.ndarray:
     """
     Replace outliers in the data with interpolated values using PCHIP interpolation.
-    
+
     Parameters:
         data (np.ndarray): Input data array with potential outliers.
         threshold (float, optional): Threshold to define the outliers. Default is max int value divided by 60.
-    
+
     Returns:
         np.ndarray: Data array with outliers filled.
     """
@@ -180,7 +210,7 @@ def fill_outliers_threshold(data: np.ndarray, threshold: float=((2**32)-1)/60) -
     not_nan = ~np.isnan(data)
     if not_nan.sum() < 2:
         return np.empty_like(data) * np.nan
-    
+
     # Find indices of outliers.
     outliers = (data >= threshold) & not_nan
 
@@ -190,16 +220,17 @@ def fill_outliers_threshold(data: np.ndarray, threshold: float=((2**32)-1)/60) -
     interpolator = PchipInterpolator(valid_indices, valid_values)
     corrected_data = data.copy().astype(float)
     corrected_data[outliers] = np.nan
-    
+
     # Don't interpolate any trailing or leading outlier values.
     if outliers[-1]:
-        outliers[-np.argmax(outliers[::-1] == False):] = False
+        outliers[-np.argmax(outliers[::-1] == False) :] = False
     if outliers[0]:
-        outliers[:np.argmax(outliers == False)] = False
+        outliers[: np.argmax(outliers == False)] = False
 
     # Interpolate the outliers using PCHIP.
     corrected_data[outliers] = interpolator(np.where(outliers)[0])
     return corrected_data
+
 
 def fill_outliers_overages(data: np.ndarray):
     """
@@ -216,27 +247,32 @@ def fill_outliers_overages(data: np.ndarray):
     Returns:
         new_data (np.ndarray): Newly calculated LFP values with outliers removed.
     """
-    n = 60 # Number of samples per 10 minute average
+    n = 60  # Number of samples per 10 minute average
     x = 2**32 - 1
 
-    num_overages = data // (x/n) # Estimate how many voltage overages we had during each 10 minute interval
+    num_overages = data // (
+        x / n
+    )  # Estimate how many voltage overages we had during each 10 minute interval
 
     # If all samples within the interval are overages, place a NAN in. This will be filled in later when the missing values are filled.
     valid_mask = num_overages < n
     corrected_data = np.empty_like(data, dtype=float)
-    corrected_data[valid_mask] = (n * data[valid_mask] - x * num_overages[valid_mask]) / (n - num_overages[valid_mask])
+    corrected_data[valid_mask] = (
+        n * data[valid_mask] - x * num_overages[valid_mask]
+    ) / (n - num_overages[valid_mask])
     corrected_data[~valid_mask] = np.nan
 
     return corrected_data
 
+
 def fill_missing(data: np.ndarray, max_gap: int = 7) -> np.ndarray:
     """
     Fill missing values (NaNs) in the data array using PCHIP interpolation, for gaps up to max_gap size.
-    
+
     Parameters:
         data (np.ndarray): Input data array with missing values (NaNs).
         max_gap (int, optional): Maximum gap size to fill. Default is 7.
-    
+
     Returns:
         np.ndarray: Data array with missing values filled.
     """
@@ -245,7 +281,7 @@ def fill_missing(data: np.ndarray, max_gap: int = 7) -> np.ndarray:
     if (~isnan).sum() < 2:
         return np.empty_like(data) * np.nan
     nan_indices = np.where(isnan)[0]
-    
+
     if len(nan_indices) == 0:
         return data  # No NaNs to fill
 
@@ -255,19 +291,24 @@ def fill_missing(data: np.ndarray, max_gap: int = 7) -> np.ndarray:
     not_nan_indices = np.where(~isnan)[0]
     not_nan_values = data[not_nan_indices]
     interpolator = PchipInterpolator(not_nan_indices, not_nan_values)
-    
+
     for gap in gaps:
         if len(gap) > 0:
-            gap_size = len(gap) + 2 if (gap[0] > 0 and gap[-1] < len(data) - 1) else len(gap) + 1
+            gap_size = (
+                len(gap) + 2
+                if (gap[0] > 0 and gap[-1] < len(data) - 1)
+                else len(gap) + 1
+            )
             if gap_size <= max_gap + 1:
                 data[gap] = interpolator(gap)
-    
+
     return data
 
-def fill_data(group_df, cols_to_fill, outlier_fill_method, offset_col='days_since_dbs'):
+
+def fill_data(group_df, cols_to_fill, outlier_fill_method, offset_col="days_since_dbs"):
     """
     Fill missing data in the DataFrame using specified methods for outlier filling.
-    
+
     Parameters:
         group_df (pd.DataFrame): DataFrame containing the data to be filled.
         cols_to_fill (list): List of column names to fill.
@@ -279,42 +320,58 @@ def fill_data(group_df, cols_to_fill, outlier_fill_method, offset_col='days_sinc
         group_df_no_na = group_df.dropna(subset=[col])
 
         start_index = np.where(group_df_no_na[offset_col].diff() > 1)[0]
-        start_index = np.array([0] + [group_df_no_na.index[i] for i in start_index] + [group_df.index.max()+1])
+        start_index = np.array(
+            [0]
+            + [group_df_no_na.index[i] for i in start_index]
+            + [group_df.index.max() + 1]
+        )
 
-        new_col_name = col.replace('_raw', '')
-        new_cols = pd.DataFrame(np.nan, columns=[f'{new_col_name}_outliers_filled', f'{new_col_name}_filled'], index=group_df.index)
-    
+        new_col_name = col.replace("_raw", "")
+        new_cols = pd.DataFrame(
+            np.nan,
+            columns=[f"{new_col_name}_outliers_filled", f"{new_col_name}_filled"],
+            index=group_df.index,
+        )
+
         for i in range(len(start_index) - 1):
             if i == 3:
                 pass
-            data = group_df.loc[start_index[i]:start_index[i+1]-1, col]
+            data = group_df.loc[start_index[i] : start_index[i + 1] - 1, col]
 
             if np.all(np.isnan(data)):
                 continue
-            data_no_trailing_nans = data[:np.where(~np.isnan(data))[0][-1]+1] # Remove trailing NaNs
+            data_no_trailing_nans = data[
+                : np.where(~np.isnan(data))[0][-1] + 1
+            ]  # Remove trailing NaNs
 
             outliers_filled = outlier_fill_method(data_no_trailing_nans.values)
             missing_filled = fill_missing(outliers_filled)
-            new_cols.loc[data_no_trailing_nans.index, f'{new_col_name}_outliers_filled'] = outliers_filled
-            new_cols.loc[data_no_trailing_nans.index, f'{new_col_name}_filled'] = missing_filled
+            new_cols.loc[
+                data_no_trailing_nans.index, f"{new_col_name}_outliers_filled"
+            ] = outliers_filled
+            new_cols.loc[data_no_trailing_nans.index, f"{new_col_name}_filled"] = (
+                missing_filled
+            )
 
         all_new_cols.append(new_cols)
 
     return pd.concat(all_new_cols, axis=1)
 
+
 def get_sig_text(pval):
     if pval < 0.0001:
-        return '****'
+        return "****"
     elif pval < 0.001:
-        return '***'
+        return "***"
     elif pval < 0.01:
-        return '**'
+        return "**"
     elif pval < 0.05:
-        return '*'
+        return "*"
     return "ns"
+
 
 def resource_path(relative_path):
     # Works for development and PyInstaller
-    if hasattr(sys, '_MEIPASS'):
+    if hasattr(sys, "_MEIPASS"):
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.join(os.path.abspath("."), relative_path)

@@ -1,16 +1,33 @@
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout,
-    QTextEdit, QProgressBar, QMessageBox, QCheckBox, QComboBox, QToolBar, QMainWindow,
-    QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QButtonGroup
+    QApplication,
+    QWidget,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
+    QHBoxLayout,
+    QTextEdit,
+    QProgressBar,
+    QMessageBox,
+    QCheckBox,
+    QComboBox,
+    QToolBar,
+    QMainWindow,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
+    QDialog,
+    QButtonGroup,
 )
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtCore import Qt, QUrl, QTimer, QSize
 from PySide6.QtGui import QDesktopServices
 import os
 import json
-from utils import resource_path
-import gui_utils
+from utils.utils import resource_path
+import utils.gui_utils as gui_utils
 from pathlib import Path
+
 
 class PatientMenu(QWidget):
     def __init__(self, parent):
@@ -22,7 +39,7 @@ class PatientMenu(QWidget):
             "dbs_date",
             "response_status",
             "response_date",
-            "disinhibited_dates"
+            "disinhibited_dates",
         ]
         self.tooltips = self.get_tooltips()
         self.initUI()
@@ -57,19 +74,22 @@ class PatientMenu(QWidget):
                 if key == "Patient ID":
                     self.table.setItem(row, col, QTableWidgetItem(patient))
                 elif key == "Response Status":
-                    response_status = display_response[patients[patient][display_keys[key]]]
+                    response_status = display_response[
+                        patients[patient][display_keys[key]]
+                    ]
                     self.table.setItem(row, col, QTableWidgetItem(response_status))
                 else:
-                    self.table.setItem(row, col, QTableWidgetItem(patients[patient][display_keys[key]]))
+                    self.table.setItem(
+                        row, col, QTableWidgetItem(patients[patient][display_keys[key]])
+                    )
 
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table_layout.addWidget(self.table)
 
-
     def load_patient_data(self):
         if not os.path.exists(resource_path("data/patient_info.json")):
             return {}
-        with open(resource_path("data/patient_info.json"), 'r') as f:
+        with open(resource_path("data/patient_info.json"), "r") as f:
             try:
                 return json.load(f)
             except json.JSONDecodeError:
@@ -81,13 +101,12 @@ class PatientMenu(QWidget):
 
     def refresh_table(self):
         # Remove existing table from layout
-        if hasattr(self, 'table'):
+        if hasattr(self, "table"):
             self.table_layout.removeWidget(self.table)
             self.table.deleteLater()
             self.table = None
 
         self.load_patients_table()
-
 
     def add_patient(self):
         dialog = QDialog(self)
@@ -96,12 +115,14 @@ class PatientMenu(QWidget):
 
         form_entries = {}
 
-        key_labels = {"Patient ID": "Patient ID",
-                      "directory": "Directory",
-                      "dbs_date": "DBS Date",
-                      "response_status": "Response Status",
-                      "response_date": "Response Date",
-                      "disinhibited_dates": "Disinhibited Dates"}
+        key_labels = {
+            "Patient ID": "Patient ID",
+            "directory": "Directory",
+            "dbs_date": "DBS Date",
+            "response_status": "Response Status",
+            "response_date": "Response Date",
+            "disinhibited_dates": "Disinhibited Dates",
+        }
 
         for key in self.field_order:
             if key == "response_status":
@@ -141,12 +162,12 @@ class PatientMenu(QWidget):
                 layout.addLayout(hbox)
                 form_entries[key] = entry
                 entry.setToolTip(self.tooltips[key])
-        
+
         def toggle_response_checkbox():
             if response_checkbox.isChecked():
                 response_date_label.show()
                 response_date_entry.show()
-        
+
             if non_response_checkbox.isChecked():
                 response_date_label.hide()
                 response_date_entry.hide()
@@ -171,33 +192,53 @@ class PatientMenu(QWidget):
                     pt_dict[patient][key] = form_entries[key].text()
 
             if not pt_dict[patient] or "directory" not in pt_dict[patient].keys():
-                QMessageBox.warning(dialog, "Validation Error", "Patient ID and Directory are required.")
+                QMessageBox.warning(
+                    dialog, "Validation Error", "Patient ID and Directory are required."
+                )
                 return
-            
-            if not Path(pt_dict[patient]['directory']).is_dir():
-                QMessageBox.warning(dialog, "Validation Error", "Path is not a valid directory")
+
+            if not Path(pt_dict[patient]["directory"]).is_dir():
+                QMessageBox.warning(
+                    dialog, "Validation Error", "Path is not a valid directory"
+                )
                 return
 
             patients = self.load_patient_data()
 
             if len(patients) > 0 and patient in patients.keys():
-                QMessageBox.warning(dialog, "Validation Error", "Patient ID is already in the app database")
-                return 
-            
-            if not gui_utils.validate_date(pt_dict[patient]['dbs_date']):
-                QMessageBox.warning(dialog, "Validation Error", "DBS activation date is required in YYYY-MM-DD format.")
+                QMessageBox.warning(
+                    dialog,
+                    "Validation Error",
+                    "Patient ID is already in the app database",
+                )
                 return
-            
-            if response_checkbox.isChecked() and not gui_utils.validate_date(pt_dict[patient]['response_date']):
+
+            if not gui_utils.validate_date(pt_dict[patient]["dbs_date"]):
+                QMessageBox.warning(
+                    dialog,
+                    "Validation Error",
+                    "DBS activation date is required in YYYY-MM-DD format.",
+                )
+                return
+
+            if response_checkbox.isChecked() and not gui_utils.validate_date(
+                pt_dict[patient]["response_date"]
+            ):
                 try:
-                    pt_dict[patient]['response_date'] = int(pt_dict[patient]['response_date'])
+                    pt_dict[patient]["response_date"] = int(
+                        pt_dict[patient]["response_date"]
+                    )
                 except Exception:
-                    QMessageBox.warning(dialog, "Validation Error", "Response date is required in YYYY-MM-DD format if patient is a responder.")
+                    QMessageBox.warning(
+                        dialog,
+                        "Validation Error",
+                        "Response date is required in YYYY-MM-DD format if patient is a responder.",
+                    )
                     return
 
             patients.update(pt_dict)
 
-            with open(resource_path("data/patient_info.json"), 'w') as f:
+            with open(resource_path("data/patient_info.json"), "w") as f:
                 json.dump(patients, f, indent=4)
 
             dialog.accept()
@@ -224,7 +265,9 @@ class PatientMenu(QWidget):
         layout = QVBoxLayout(dialog)
 
         if len(self.load_patient_data()) == 0:
-            QMessageBox.warning(dialog, "Validation Error", "No patients in the database to delete.")
+            QMessageBox.warning(
+                dialog, "Validation Error", "No patients in the database to delete."
+            )
             return
 
         layout.addWidget(QLabel("Enter Patient ID to delete:"))
@@ -238,13 +281,15 @@ class PatientMenu(QWidget):
                 return
 
             patients = self.load_patient_data()
-            
+
             if patient_id not in patients.keys():
-                QMessageBox.warning(dialog, "Not Found", f"No patient found with ID: {patient_id}")
+                QMessageBox.warning(
+                    dialog, "Not Found", f"No patient found with ID: {patient_id}"
+                )
                 return
 
             del patients[patient_id]
-            with open(resource_path("data/patient_info.json"), 'w') as f:
+            with open(resource_path("data/patient_info.json"), "w") as f:
                 json.dump(patients, f, indent=4)
 
             dialog.accept()
@@ -286,5 +331,5 @@ class PatientMenu(QWidget):
             "dbs_date": "Initial DBS programming date (YYYY-MM-DD format).",
             "response_status": "Responder status (Yes/No).",
             "response_date": "Date the patient became a responder (Enter YYYY-MM-DD format or # of days post-DBS patient achieved response).",
-            "disinhibited_dates": "Dates the patient was disinhibited in [start date, end date] format (Enter dates in YYYY-MM-DD format or post-DBS day range patient was disinhibited)."
+            "disinhibited_dates": "Dates the patient was disinhibited in [start date, end date] format (Enter dates in YYYY-MM-DD format or post-DBS day range patient was disinhibited).",
         }
