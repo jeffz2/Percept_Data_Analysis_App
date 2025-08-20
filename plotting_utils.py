@@ -7,12 +7,24 @@ import json
 import scipy.stats as stats
 import burdened_state_regression as reg
 
+# Color and style settings
+C_PRE_DBS = 'rgba(255, 215, 0, 0.5)'
+C_REPSONDER = 'rgba(0, 0, 255, 1)'
+C_NON_RESPONDER = 'rgba(255, 185, 0, 1)'
+C_DISINHIBITED = '#ff0000'
+C_DOTS = 'rgba(128, 128, 128, 0.5)'
+C_PRED = 'rgba(51, 160, 44, 1)'
+C_RAW = 'rgba(128, 128, 128, 0.7)'
+
 def plot_metrics(
     df: pd.DataFrame, 
     patient: str, 
     hemisphere: str, 
     changes_df: pd.DataFrame,
-    show_changes: bool = False
+    show_changes: bool,
+    patients_dict: dict,
+    param_dict: dict
+
 ) -> go.Figure:
     """
     Generate a plot with multiple subplots to visualize various metrics including LFP amplitude, linear AR model,
@@ -27,35 +39,17 @@ def plot_metrics(
     Returns:
         go.Figure: A Plotly figure with the generated subplots.
     """
-    # Color and style settings
-    c_preDBS = 'rgba(255, 215, 0, 0.5)'
-    c_responder = 'rgba(0, 0, 255, 1)'
-    c_nonresponder = 'rgba(255, 185, 0, 1)'
-    c_disinhibited = '#ff0000'
-    c_dots = 'rgba(128, 128, 128, 0.5)'
-    c_linAR = 'rgba(51, 160, 44, 1)'
-    c_OG = 'rgba(128, 128, 128, 0.7)'
-    sz = 5
 
-    # Load param settings
-    with open('data/param.json', 'r') as f:
-        param_dict = json.load(f)
-
-    with open('data/patient_info.json', 'r') as f:
-        patients_dict = json.load(f)
 
     patient_dict = patients_dict[patient]
     model = param_dict['model']
     delta = param_dict['delta']
 
     pt_df = df.query('pt_id == @patient and lead_location == "VC/VS"')
-    days = pt_df.drop_duplicates(subset=['days_since_dbs'])['days_since_dbs']
-    t = pt_df['CT_timestamp']
-    OG = pt_df[f'lfp_{hemisphere}_filled_{model}']
-    linAR = pt_df[f'lfp_{hemisphere}_preds_{model}']
-    res = pt_df[f'lfp_{hemisphere}_residuals_{model}']
-    linAR_R2 = pt_df.drop_duplicates(subset=['days_since_dbs'])[f'lfp_{hemisphere}_day_r2_{model}']
-    state_labels = pt_df.drop_duplicates(subset=['days_since_dbs'])['state_label']
+    pt_daily_df = pt_df.drop_duplicates(subset=['days_since_dbs'])
+
+    days = pt_daily_df['days_since_dbs']
+    linAR_R2 = pt_daily_df[f'lfp_{hemisphere}_day_r2_{model}']
 
     # Identify discontinuities in the days array
     start_index = np.where(np.diff(days) > 7)[0] + 1
@@ -100,9 +94,10 @@ def plot_metrics(
     # Plot Full Time-Domain Plot
     for i in range(len(start_index) - 1):
         segment_days = np.ravel(days[start_index[i]+1:start_index[i+1]])
-        segment_OG = pt_df.query('days_since_dbs in @segment_days')[f'lfp_{hemisphere}_z_scored_{model}']
-        segment_linAR = pt_df.query('days_since_dbs in @segment_days')[f'lfp_{hemisphere}_preds_{model}']
-        segment_times = pt_df.query('days_since_dbs in @segment_days')['CT_timestamp']
+        segment_df = pt_df.query('days_since_dbs in @segment_days')
+        segment_OG = segment_df[f'lfp_{hemisphere}_z_scored_{model}']
+        segment_linAR = segment_df[f'lfp_{hemisphere}_preds_{model}']
+        segment_times = segment_df['CT_timestamp']
 
         mask = ~np.isnan(segment_times) & ~np.isnan(segment_OG)
         valid_indices = np.where(mask)[0]
@@ -116,7 +111,7 @@ def plot_metrics(
                         x=segment_times.values[segment],
                         y=segment_OG.values[segment],
                         mode='lines',
-                        line=dict(color=c_OG, width=1),
+                        line=dict(color=C_RAW, width=1),
                         showlegend=False
                     ), row=1, col=1)
 
@@ -132,7 +127,7 @@ def plot_metrics(
                         x=segment_times.values[segment],
                         y=segment_linAR.values[segment],
                         mode='lines',
-                        line=dict(color=c_linAR, width=1),
+                        line=dict(color=C_PRED, width=1),
                         showlegend=False
                     ), row=1, col=1)
     fig.add_vline(x=patient_dict['dbs_date'], row=1, col=1, line_dash='dash', line_color='hotpink', line_width=5)
@@ -144,7 +139,8 @@ def plot_metrics(
             return f"Contact {values[0][0].split('_')[-1][0]} -> Contact {values[1][0].split('_')[-1][0]}"
 
     if show_changes:
-        for i, row in changes_df.iterrows():
+        pt_changes = changes_df.query('pt_id == @patient')
+        for i, row in pt_changes.iterrows():
             row.dropna(inplace=True)
             changes = row.drop(labels=[label for label in row.index if hemisphere not in label])
             annotation = [f"{" ".join(changes.index[i].split('_')[1:])}: {get_change(changes.values[i])}" for i in range(len(changes))]
@@ -158,7 +154,7 @@ def plot_metrics(
             fig.add_trace(
                 go.Scatter(
                     x=[dt, dt],
-                    y=[-10, 10],
+                    y=[-3, 10],
                     mode='lines',
                     line=dict(color='black', width=3, dash='dot'),
                     hovertext=f"{ts}: {", ".join(annotation)}",
@@ -186,11 +182,11 @@ def plot_metrics(
             x=segment_days,
             y=pd.Series(segment_linAR_R2).rolling(window=5, min_periods=1).mean(),
             mode='lines',
-            line=dict(color=c_dots),
+            line=dict(color=C_DOTS),
             showlegend=False
         ), row=2, col=1)
         
-    color_dict = {0: c_preDBS, 1: c_disinhibited, 2: c_nonresponder, 3: c_responder, 4: c_dots}
+    color_dict = {0: C_PRE_DBS, 1: C_DISINHIBITED, 2: C_NON_RESPONDER, 3: C_REPSONDER, 4: C_DOTS}
 
     for color in color_dict.keys():
         if color not in pt_df['state_label'].values:
@@ -210,7 +206,7 @@ def plot_metrics(
     fig.add_vline(x=0, row=2, col=1, line_dash='dash', line_color='hotpink', line_width=5)
 
     if show_changes:
-        for i, row in changes_df.iterrows():
+        for i, row in pt_changes.iterrows():
             row.dropna(inplace=True)
 
             day = row['days_since_dbs']
@@ -226,8 +222,8 @@ def plot_metrics(
             y=violin_df.query('state_label == 0')[f'lfp_{hemisphere}_day_r2_{model}'],
             name='', 
             side='negative', 
-            line_color=c_preDBS, 
-            fillcolor=c_preDBS,
+            line_color=C_PRE_DBS, 
+            fillcolor=C_PRE_DBS,
             showlegend=False,
             width=VIOLIN_WIDTH,
             meanline_visible=True, 
@@ -239,8 +235,8 @@ def plot_metrics(
         fig.add_trace(go.Violin(
             y=violin_df.query("days_since_dbs >= @patient_dict['response_date']")[f'lfp_{hemisphere}_day_r2_{model}'],  
             side='positive', 
-            line_color=c_responder, 
-            fillcolor=c_responder,
+            line_color=C_REPSONDER, 
+            fillcolor=C_REPSONDER,
             showlegend=False,
             width=VIOLIN_WIDTH,
             meanline_visible=True, 
@@ -252,8 +248,8 @@ def plot_metrics(
         fig.add_trace(go.Violin(
             y=violin_df.query('days_since_dbs > 0')[f'lfp_{hemisphere}_day_r2_{model}'], 
             side='positive', 
-            line_color=c_nonresponder, 
-            fillcolor=c_nonresponder,
+            line_color=C_NON_RESPONDER, 
+            fillcolor=C_NON_RESPONDER,
             showlegend=False,
             width=VIOLIN_WIDTH,
             meanline_visible=True, 
@@ -286,9 +282,9 @@ def plot_metrics(
         ),
         dict(
             text="Linear AR R² Over Time",
-            x=0.35,
+            x=0.45,
             xref="paper",
-            y=0.35,  # Adjusted Y position to move the annotation upwards
+            y=0.45,  # Adjusted Y position to move the annotation upwards
             yref="paper",
             showarrow=False,
             font=dict(size=14, color=title_font_color, family="Helvetica")
@@ -303,45 +299,53 @@ def plot_metrics(
             font=dict(size=14, color=title_font_color, family="Helvetica")
         )
     ]
+    
+    fig.update_layout(annotations=annotations, legend=dict(x=1, y=0.5, xanchor="right", yanchor="middle", font=dict(size=10), entrywidth=0.5, entrywidthmode='fraction', itemwidth=30))
+
+    return fig, t_val, p_val
+
+def make_legend(patient, patient_dict, show_changes):
+    fig = make_subplots()
+    pt_params = patient_dict[patient]
 
     fig.add_trace(go.Scatter(
         x=[None], y=[None],
         mode='markers',
         name='Raw LFP (z-scored)',
-        marker=dict(color=c_OG, symbol='circle')
+        marker=dict(color=C_RAW, symbol='circle')
     ))
     fig.add_trace(go.Scatter(
         x=[None], y=[None],
         mode='markers',
         name='AR(1) predicted LFP (z-scored)',
-        marker=dict(color=c_linAR, symbol='circle')
+        marker=dict(color=C_PRED, symbol='circle')
     ))
     fig.add_trace(go.Scatter(
         x=[None], y=[None],
         mode='markers',
         name='Pre-DBS',
-        marker=dict(color=c_preDBS, symbol='circle')
+        marker=dict(color=C_PRE_DBS, symbol='circle')
     ))
-    if patient_dict['response_status'] == 1:
+    if pt_params['response_status'] == 1:
         fig.add_trace(go.Scatter(
         x=[None], y=[None],
         mode='markers',
         name='Response',
-        marker=dict(color=c_responder, symbol='circle')
+        marker=dict(color=C_REPSONDER, symbol='circle')
         ))
     else:
         fig.add_trace(go.Scatter(
         x=[None], y=[None],
         mode='markers',
         name='Non-response',
-        marker=dict(color=c_nonresponder, symbol='circle')
+        marker=dict(color=C_NON_RESPONDER, symbol='circle')
         ))
-    if 1 in pt_df['state_label'].values:
+    if "disinhibited_dates" in list(pt_params.keys()):
         fig.add_trace(go.Scatter(
         x=[None], y=[None],
         mode='markers',
         name='Disinhibited',
-        marker=dict(color=c_disinhibited, symbol='circle')
+        marker=dict(color=C_DISINHIBITED, symbol='circle')
         ))
     fig.add_trace(go.Scatter(
         x=[None], y=[None],
@@ -357,6 +361,5 @@ def plot_metrics(
             marker=dict(color='black', symbol='square')
             ))
     
-    fig.update_layout(annotations=annotations, legend=dict(x=1, y=0.5, xanchor="right", yanchor="middle", font=dict(size=10), entrywidth=0.5, entrywidthmode='fraction', itemwidth=30))
-
+    fig.update_layout(legend=dict(x=0, y=0, xanchor="center", yanchor="middle", font=dict(size=10), entrywidth=0.5, entrywidthmode='fraction', itemwidth=30))
     return fig

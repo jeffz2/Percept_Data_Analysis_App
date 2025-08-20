@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Percept Desktop App is designed to provide an intuitive user interface for running the percept-data analysis pipeline for OCD patients, as detailed in this [paper](https://www.nature.com/articles/s41591-024-03125-0). The original program was developed using a combination of MATLAB and Python, as seen in the [PerceptDataAnalysis repository](https://github.com/shethlab/PerceptDataAnalysis) and includes updates to the autoregressive model and outlier handling methods as seen in the the [PerceptArtifactAnalysis repository](https://github.com/ProvenzaLab/PerceptArtifactAnalysis). This application translates all the code into Python and uses a Python-based library to create the GUI. The source code and instructions for downloading the app can be found on this GitHub repo
+The Percept Desktop App is designed to provide an intuitive user interface for running the percept-data analysis pipeline for data collected from Medtronic Percept devices stored as BrainSense Timeline recordings, as detailed in this [paper](https://www.nature.com/articles/s41591-024-03125-0). The original program was developed using a combination of MATLAB and Python, as seen in the [PerceptDataAnalysis repository](https://github.com/shethlab/PerceptDataAnalysis) and includes updates to the autoregressive model and outlier handling methods as seen in the the [PerceptArtifactAnalysis repository](https://github.com/ProvenzaLab/PerceptArtifactAnalysis). This application translates all the code into Python and uses a Python-based library to create the GUI. The source code and instructions for downloading the app can be found on this GitHub repo
 
 ## User Manual
 
@@ -81,7 +81,7 @@ To run the Core Analysis Pipeline, users must specify certain hyperparameters, d
 **Required Parameters:**
 
 - `subject_name`: A codename for tracking a specific patient (e.g., '009').
-- `directory`: A string corresponding to the path of the directory with the subject's JSON files. Use CTRL-SHIFT-C on a selected folder to copy its path.
+- `directory`: A selection window will appear after entering in patient information. Select the parent directory containing all of the patient's JSON data files.
 - `dbs_date`: The start date of DBS treatment, in the format YYYY-MM-DD.
 - `response_status`: The response status of the patient if known. If unknown, default to non-response.
 - `response_date`: The response date of the patient, if applicable, in YYYY-MM-DD format or enter the # of days after DBS activation.
@@ -93,6 +93,9 @@ Example values for these parameters are provided in `patient_info.json`.
 
 - `window_size`: Window size of data, in days, to train and test the autoregressive model. Specified as the total number of days in the sliding window.
 - `outlier_fill_method`: Outlier interpolation method used during processing (Naive, Threshold, Overages).
+- `delta`: Applies a baseline normalization to the R² feature. The average of pre-DBS R² values is subtracted from all data points.
+- `ark`: Choose to apply an AR(k) model to fit to the data instead of the default AR(1) model.
+- `lags`: Enter the number of lag terms to use in the model. Only applies to the AR(k) model.
 
 These parameters can be adjusted in the app's settings menu.
 

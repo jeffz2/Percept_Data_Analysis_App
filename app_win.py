@@ -2,11 +2,12 @@ import sys
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout,
     QTextEdit, QProgressBar, QMessageBox, QCheckBox, QComboBox, QToolBar, QMainWindow,
-    QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QButtonGroup
+    QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QButtonGroup, QGraphicsScene,
+    QGraphicsView, QGraphicsTextItem, QGraphicsEllipseItem, QGraphicsRectItem
 )
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtCore import Qt, QUrl, QTimer, QSize
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QDesktopServices, QPainter, QPen, QBrush, QFont
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEngineSettings
 import generate_raw
@@ -21,6 +22,7 @@ import pandas as pd
 import numpy as np
 from opening_windows import OpeningScreen, HelpMenu, SettingsMenu
 from patient_menu import PatientMenu
+import plotly.io as pio
 
 try:
     from ctypes import windll
@@ -32,7 +34,6 @@ except ImportError:
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
 LOADING_SCREEN_INTERVAL = 100  # in milliseconds
-HEMISPHERE = 'left'
 
 def resource_path(relative_path):
     # Works for development and PyInstaller
@@ -252,17 +253,22 @@ class LoadingScreen(QWidget):
         self.setLayout(self.layout)
 
 class Plots(QWidget):
-    def __init__(self, parent,df_final, pt_changes_df):
+    def __init__(self, parent, df_final, pt_changes_df):
         super().__init__(parent)
         self.parent = parent
-        with open(resource_path('data/param.json'), 'r') as f:
-            self.param_dict = json.load(f)
         self.df_final = df_final
         self.pt_changes_df = pt_changes_df
-        self.patients = np.unique(df_final['pt_id'])
-        self.curr_pt = self.patients[0]
-        with open('data/patient_info.json') as f:
-            self.patient_dict = json.load(f)
+
+        # Load static resources only once
+        if not hasattr(Plots, "param_dict"):
+            with open(resource_path('data/param.json'), 'r') as f:
+                self.param_dict = json.load(f)
+        if not hasattr(Plots, "patient_dict"):
+            with open('data/patient_info.json') as f:
+                self.patient_dict = json.load(f)
+
+        self.curr_pt = list(self.patient_dict.keys())[0]
+        self.hemisphere = 'left'
         self.current_plot = None
         self.web_view = QWebEngineView(self)
         self.initUI()
@@ -277,72 +283,76 @@ class Plots(QWidget):
         self.layout.addLayout(self.content_layout)
         self.init_bottom_buttons()
         self.setLayout(self.layout)
-        self.update_plot(self.curr_pt)
 
+        self.refresh_patient_view()
+
+    # -------------------------
+    # JSON panel
+    # -------------------------
     def init_json_frame(self, index=0):
         self.json_fields_frame = QWidget(self)
+        self.legend_frame = QWidget(self)
         self.json_layout = QVBoxLayout(self.json_fields_frame)
+
+        # Patient selector
+        self.patient_selector = QComboBox(self)
+        self.patient_selector.addItems(self.patient_dict.keys())
+        self.patient_selector.setCurrentIndex(index)
+        self.patient_selector.currentIndexChanged.connect(self.patient_change)
+        self.json_layout.addWidget(self.patient_selector)
+
+        # Hemisphere selector
+        self.hemisphere_selector = QComboBox(self)
+        self.hemisphere_selector.addItems(["Left Hemisphere", "Right Hemisphere"])
+        self.hemisphere_selector.setCurrentIndex(index)
+        self.hemisphere_selector.currentIndexChanged.connect(self.on_hemisphere_change)
+        self.json_layout.addWidget(self.hemisphere_selector)
+
+        # JSON display
         self.json_text = QTextEdit(self.json_fields_frame)
         self.json_text.setReadOnly(True)
-        self.json_text.setStyleSheet("""
-            background-color: #4d4d4d;
-            color: #f5f5f5;
-            border: 1px solid #555;
-            border-radius: 5px;
-            padding: 10px;
-            font-size: 14px;
-            font-family: 'Roboto', sans-serif;
-        """)
-        self.init_patient_selector(index)
+        self.json_text.setMinimumHeight(200)
+        self.json_text.setStyleSheet("background:#4d4d4d; color:#f5f5f5; border:1px solid #555; padding:10px;")
         self.json_layout.addWidget(self.json_text)
 
-        self.update_json_fields(self.patients[index])
+        # Legend
+        self.legend = QGraphicsScene(self)
+        self.legend.setBackgroundBrush(QBrush("#FFFFFF"))
+        self.legend_view = QGraphicsView(self.legend)
+        self.legend_view.setSceneRect(0, 0, 200, 200)
+        self.json_layout.addWidget(self.legend_view, alignment=Qt.AlignCenter)
 
+        # Controls
         self.changes_checkbox = QCheckBox("Show Parameter Changes", self)
-        self.changes_checkbox.setChecked(False)
-        self.changes_checkbox.stateChanged.connect(self.plot_param_change)
-        self.json_layout.addWidget(self.changes_checkbox, alignment=Qt.AlignCenter | Qt.AlignBottom)
+        self.changes_checkbox.stateChanged.connect(lambda _: self.refresh_patient_view())
+        self.json_layout.addWidget(self.changes_checkbox, alignment=Qt.AlignCenter)
 
         self.export_button = QPushButton("Export LinAR R² feature", self)
         self.export_button.clicked.connect(self.export_data)
-        self.json_layout.addWidget(self.export_button, alignment=Qt.AlignCenter | Qt.AlignBottom)
+        self.json_layout.addWidget(self.export_button, alignment=Qt.AlignCenter)
 
-        self.json_fields_frame.setLayout(self.json_layout)
         self.content_layout.addWidget(self.json_fields_frame, 2)
-
-    def plot_param_change(self):
-        self.update_plot(self.curr_pt, HEMISPHERE, self.changes_checkbox.isChecked())
-
-    def init_patient_selector(self, index):
-        self.patient_selector = QComboBox(self)
-        self.patient_selector.addItems(self.patients)
-        self.patient_selector.setCurrentIndex(index)
-        self.patient_selector.currentIndexChanged.connect(self.patient_change)
 
     def update_json_fields(self, patient):
         pt_df = self.df_final.query('pt_id == @patient')
         self.json_text.clear()
         self.json_text.append(f"Subject_name: {patient}\n")
-        self.json_text.append(f"Initial DBS programming:\n {self.patient_dict[patient]['dbs_date']}\n")
-        self.json_text.append(f"Total samples: {len(pt_df.index)}\n")
-        self.json_text.append(f"Total days: {len(np.unique(pt_df['days_since_dbs']))}\n")
-        if(self.patient_dict[self.curr_pt]['response_status'] == 1):
+        self.json_text.append(f"Initial DBS programming: {self.patient_dict[patient]['dbs_date']}\n")
+        self.json_text.append(f"Total samples: {len(pt_df)}\n")
+        self.json_text.append(f"Total days: {pt_df['days_since_dbs'].nunique()}\n")
+        if self.patient_dict[patient]['response_status'] == 1:
             self.json_text.append(f"Responder on {self.patient_dict[patient]['response_date']}\n")
         else:
-            self.json_text.append(f"Non-responder\n")
+            self.json_text.append("Non-responder\n")
 
+    # -------------------------
+    # Plot panel
+    # -------------------------
     def init_plot_frame(self):
-        self.web_view.setFixedSize(900, 650)
+        self.web_view.setMinimumSize(800, 600)
         self.configure_web_view()
 
-        self.hemisphere_selector_layout = QHBoxLayout()
-        self.hemisphere_selector_layout.addStretch()
-        self.init_hemisphere_selector()
-        self.hemisphere_selector_layout.addWidget(self.hemisphere_selector)
-        self.hemisphere_selector_layout.addSpacing(10)
-
         self.plot_layout = QVBoxLayout()
-        self.plot_layout.addLayout(self.hemisphere_selector_layout)
         self.plot_layout.addWidget(self.web_view)
 
         self.content_layout.addLayout(self.plot_layout, 8)
@@ -352,54 +362,101 @@ class Plots(QWidget):
         settings.setAttribute(QWebEngineSettings.LocalStorageEnabled, True)
         settings.setAttribute(QWebEngineSettings.LocalContentCanAccessRemoteUrls, True)
 
-    def init_hemisphere_selector(self):
-        self.hemisphere_selector = QComboBox(self)
-        self.hemisphere_selector.addItems(["Left Hemisphere", "Right Hemisphere"])
-        self.hemisphere_selector.setCurrentIndex(0)
-        self.hemisphere_selector.currentIndexChanged.connect(self.on_hemisphere_change)
-
+    # -------------------------
+    # Controls
+    # -------------------------
     def init_bottom_buttons(self):
         self.button_layout = QHBoxLayout()
 
         self.back_button = QPushButton("Back", self)
         self.back_button.clicked.connect(self.go_back)
-        self.button_layout.addWidget(self.back_button, alignment=Qt.AlignLeft | Qt.AlignBottom)
+        self.button_layout.addWidget(self.back_button, alignment=Qt.AlignLeft)
 
         self.download_button = QPushButton("Download plot", self)
         self.download_button.clicked.connect(self.download_image)
-        self.button_layout.addWidget(self.download_button, alignment=Qt.AlignRight | Qt.AlignBottom)
+        self.button_layout.addWidget(self.download_button, alignment=Qt.AlignRight)
 
         self.layout.addLayout(self.button_layout)
 
-    def patient_change(self, index):
-        patient = self.patients[index]
-        self.curr_pt = patient
+    # -------------------------
+    # Actions
+    # -------------------------
+    def refresh_patient_view(self):
         self.update_json_fields(self.curr_pt)
-        self.update_plot(self.curr_pt, HEMISPHERE, self.changes_checkbox.isChecked())
+        self.update_plot(self.curr_pt, self.hemisphere, self.changes_checkbox.isChecked())
+        
+
+    def patient_change(self, index):
+        self.curr_pt = list(self.patient_dict.keys())[index]
+        self.refresh_patient_view()
 
     def on_hemisphere_change(self, index):
-        HEMISPHERE = 'left' if index == 0 else 'right'
-        self.update_plot(self.curr_pt, HEMISPHERE, self.changes_checkbox.isChecked())
+        self.hemisphere = 'left' if index == 0 else 'right'
+        self.refresh_patient_view()
 
-    def update_plot(self, patient, hemisphere = 'left', show_changes=False):
-        fig = plots.plot_metrics(
+    def update_plot(self, patient, hemisphere='left', show_changes=False):
+        fig, tval, pval = plots.plot_metrics(
             df=self.df_final,
             patient=patient,
             hemisphere=hemisphere,
             changes_df=self.pt_changes_df,
-            show_changes=show_changes
+            show_changes=show_changes,
+            patients_dict=self.patient_dict,
+            param_dict=self.param_dict
         )
-
         self.current_plot = fig
 
         temp_file_path = gui_utils.create_temp_plot(fig)
-
         self.web_view.setUrl(QUrl.fromLocalFile(temp_file_path))
+   
+        self.create_legend()
+
+        self.json_text.append(f'Pre-DBS vs. Post-DBS t-test stats:\nt = {np.round(tval, 4)}\np = {np.round(pval, 4) if pval > 0.0001 else 'p < 10⁻⁴'}')
+
+    def create_legend(self):
+        self.legend.clear()
+        labels = {'Raw LFP (z-scored)': QGraphicsEllipseItem(5, 5, 10, 10), 'AR predicted LFP (z-scored)': QGraphicsEllipseItem(5, 20, 10, 10), 'DBS On': QGraphicsRectItem(5, 35, 10, 10), 'Pre-DBS': QGraphicsEllipseItem(5, 50, 10, 10)}
+        colors = {'Raw LFP (z-scored)': '#808080', 'AR predicted LFP (z-scored)': '#33a02c', 'DBS On': "#eb6bde", 'Pre-DBS': '#ffe900'}
+        pt_params = self.patient_dict[self.curr_pt]
+        if pt_params['response_status'] == 1:
+            labels['Response'] = QGraphicsEllipseItem(5, 65, 10, 10)
+            colors['Response'] = '#0000ff'
+        else:
+            labels['Non-Response'] = QGraphicsEllipseItem(5, 65, 10, 10)
+            colors['Non-Response'] = '#ffb900'
+        if "disinhibited_dates" in list(pt_params.keys()):
+            labels['Disinhibited'] = QGraphicsEllipseItem(5, 95, 10, 10)
+            colors['Disinhibited'] = '#ff0000'
+        if self.changes_checkbox.isChecked():
+            labels['Parameter Change'] = QGraphicsRectItem(5, 80, 10, 10)
+            colors['Parameter Change'] = "#000000"
+
+        y_pos = 5
+        offset = 15
+
+        for label, item in labels.items():
+            item.setPos(5, y_pos)
+            item.setPen(QPen(colors[label]))
+            item.setBrush(QBrush(colors[label]))
+            self.legend.addItem(item)
+
+            text_item = QGraphicsTextItem(label)
+            text_item.setFont(QFont("Arial", 8))
+
+            text_y = item.pos().y() * 2
+            
+            text_item.setPos(item.pos().x() + 20, text_y)
+            self.legend.addItem(text_item)
+
+            y_pos += offset
+
+        # Adjust scene rect to fit items
+        self.legend.setSceneRect(self.legend.itemsBoundingRect())
 
     def go_back(self):
         self.hide()
         self.parent.setGeometry(100, 100, WINDOW_WIDTH, WINDOW_HEIGHT)
-        self.parent.show_opening_screen()
+        self.parent.show_opening_screen() 
 
     def download_image(self):
         file_path = gui_utils.open_save_dialog(self, "Save Image", "")
@@ -413,6 +470,7 @@ class Plots(QWidget):
         if file_path:
             data = self.df_final.query('pt_id == @self.curr_pt')
             gui_utils.save_lin_ar_feature(data, file_path, self.param_dict)
+
 
 
 if __name__ == "__main__":
