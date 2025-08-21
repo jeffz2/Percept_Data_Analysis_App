@@ -32,7 +32,7 @@ import os
 import json
 import pandas as pd
 import numpy as np
-from src.opening_windows import OpeningScreen, HelpMenu, SettingsMenu
+from src.opening_windows import OpeningScreen, HelpMenu, SettingsMenu, DocMenu
 from src.patient_menu import PatientMenu
 
 try:
@@ -132,6 +132,10 @@ class MainWindow(QWidget):
         self.settings_menu = SettingsMenu(self)
         self.layout.addWidget(self.settings_menu)
         self.settings_menu.hide()
+
+        self.doc_menu = DocMenu(self)
+        self.layout.addWidget(self.doc_menu)
+        self.doc_menu.hide()
 
         self.apply_styles()
 
@@ -239,6 +243,11 @@ class MainWindow(QWidget):
         self.help_menu.hide()
         self.settings_menu.hide()
         self.patient_menu.hide()
+
+    def show_doc_menu(self):
+        self.hide_all_menus()
+        self.opening_screen.hide()
+        self.doc_menu.show()
 
 
 class LoadingScreen(QWidget):
@@ -486,9 +495,6 @@ class Plots(QWidget):
         else:
             labels["Non-Response"] = QGraphicsEllipseItem(5, 65, 10, 10)
             colors["Non-Response"] = "#ffb900"
-        if "disinhibited_dates" in list(pt_params.keys()):
-            labels["Disinhibited"] = QGraphicsEllipseItem(5, 95, 10, 10)
-            colors["Disinhibited"] = "#ff0000"
         if self.changes_checkbox.isChecked():
             labels["Parameter Change"] = QGraphicsRectItem(5, 80, 10, 10)
             colors["Parameter Change"] = "#000000"

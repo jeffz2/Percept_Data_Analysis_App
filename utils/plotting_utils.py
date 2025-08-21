@@ -302,7 +302,6 @@ def plot_metrics(
 
     fig.update_yaxes(
         title_text="Linear AR R²",
-        range=(-1, 0.5) if delta else (-0.5, 1),
         row=2,
         col=1,
         tickfont=dict(color=axis_title_font_color),
@@ -386,7 +385,6 @@ def plot_metrics(
         )
 
     fig.update_yaxes(
-        range=(-1, 0.5) if delta else (-0.5, 1),
         row=2,
         col=4,
         tickfont=dict(color=axis_title_font_color),

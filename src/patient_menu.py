@@ -38,8 +38,8 @@ class PatientMenu(QWidget):
             "directory",
             "dbs_date",
             "response_status",
-            "response_date",
-            "disinhibited_dates",
+            "response_date"
+            #"disinhibited_dates",
         ]
         self.tooltips = self.get_tooltips()
         self.initUI()

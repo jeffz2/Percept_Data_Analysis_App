@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtCore import Qt, QUrl, QTimer, QSize
 from PySide6.QtGui import QDesktopServices
+from PySide6.QtWebEngineWidgets import QWebEngineView
 import sys
 import os
 import json
@@ -126,11 +127,7 @@ class OpeningScreen(QWidget):
             self,
         )
         doc_button.setStatusTip("See GitHub Documentation of the app")
-        doc_button.triggered.connect(
-            lambda: open_url(
-                "https://github.com/ProvenzaLab/Percept_Data_Analysis_App/blob/main/README.md"
-            )
-        )
+        doc_button.triggered.connect(self.parent.show_doc_menu)
         toolbar.addAction(doc_button)
 
         help_button = QAction(
@@ -172,15 +169,9 @@ class HelpMenu(QWidget):
 
     def initUI(self):
         self.layout = QVBoxLayout(self)
-
-        self.help_label = QLabel(
-            "Write a step-by-step guide to use the app.<br>"
-            "Step 1: Add patients with dbs on date, folder containing the data, and responder status.<br><br>"
-            "Step 2: Do the data processing and see results",
-            self,
-        )
-        self.help_label.setAlignment(Qt.AlignCenter)
-        self.layout.addWidget(self.help_label)
+        help_view = QWebEngineView()
+        help_view.load(QUrl("https://github.com/ProvenzaLab/Percept_Data_Analysis_App/blob/main/help.md"))
+        self.layout.addWidget(help_view)
 
         self.init_bottom_buttons()
         self.setLayout(self.layout)
@@ -200,6 +191,34 @@ class HelpMenu(QWidget):
 
         self.layout.addLayout(self.button_layout)
 
+class DocMenu(QWidget):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.initUI()
+
+    def initUI(self):
+        self.layout = QVBoxLayout(self)
+        doc_view = QWebEngineView()
+        doc_view.load(QUrl("https://github.com/ProvenzaLab/Percept_Data_Analysis_App/blob/main/README.md"))
+        self.layout.addWidget(doc_view)
+        
+        self.init_bottom_buttons()
+        self.setLayout(self.layout)
+    
+    def go_back(self):
+        self.hide()
+        self.window().show_opening_screen()
+
+    def init_bottom_buttons(self):
+        self.button_layout = QHBoxLayout()
+
+        self.back_button = QPushButton("Back", self)
+        self.back_button.clicked.connect(self.go_back)
+        self.button_layout.addWidget(
+            self.back_button, alignment=Qt.AlignLeft | Qt.AlignBottom
+        )
+
+        self.layout.addLayout(self.button_layout)
 
 class SettingsMenu(QWidget):
     def __init__(self, parent=None):
@@ -302,7 +321,7 @@ class SettingsMenu(QWidget):
         )
         self.ark_checkbox.stateChanged.connect(self.toggle_lags)
 
-        self.lag_entry = QLineEdit("144", self)
+        self.lag_entry = QLineEdit("72", self)
         self.lag_label = QLabel("Lags:")
         form.addRow(self.ark_checkbox)
         form.addRow(self.lag_label, self.lag_entry)
