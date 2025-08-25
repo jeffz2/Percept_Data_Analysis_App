@@ -37,7 +37,7 @@ The Percept Data Analysis App helps users process and analyze perceptual data ef
 
 - AR(k) model
 
-    - Option to use an AR(k) model instead of the default AR(1) model. If the AR(k) model is selected, the number of lag terms used by the AR(k) model can be specified. The default number of lag terms is 72, up to a half day's worth of neural data. Larger number of lag terms may skew results.
+    - Option to use an AR(k) model instead of the default AR(1) model. If the AR(k) model is selected, the number of lag terms used by the AR(k) model can be specified. The default number of lag terms is 72, up to a half day's worth of neural data.
 
 
 
@@ -53,7 +53,7 @@ Process all raw LFP data. Remove duplicate data readings, interpolate outliers a
 
 ### 3. Model Data
 
-An autoregressive (AR) model is used predict the LFP data. The model is applied to each patient's neural data with a sliding window of size *n* and a 1 day stride. The model can be entirely causal by training on the previous *n*-1 days' of neural data and predicting the last day's neural data. The model can also be applied as a non-causal method where the model is trained on neural data from the days flanking the window's center day and predicting that center day's neural data. 
+An autoregressive (AR) model is used predict the LFP data. The model is applied to each patient's neural data with a sliding window of size *n* and a 1 day stride. The model can be entirely causal by training on the previous *n*-1 days' of neural data and predicting the window's last day of neural data. The model can also be applied as a non-causal method where the model is trained on neural data from the days flanking the window's center day and predicting that center day's neural data. 
 
 If an AR(k) model is used, significant lag terms are determined using an *n*-fold cross-validation with a ordinary least square regression model. For each fold of the cross-validation, significant lag terms (*p* < 0.05) were recorded. If the lag term was significant for more than half the folds, then the lag term was deemed significant. The default number of folds is 5. Lag terms with more than 50% `nan` values were dropped. 
 
@@ -72,8 +72,9 @@ Stimulation parameter changes can be displayed on the LFP time series plot as we
 3. Click "Run Analysis" to process data.
 4. View results and download output.
 
-## Tips
+## Other Tools
 - Refer to the README for advanced configuration options and developer tools.
+- The `terminal_runner.py` file contains a demo of the analysis pipeline
 
 ## Troubleshooting
 
