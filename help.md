@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Percept Data Analysis App helps users process and analyze perceptual data efficiently. This guide explains the app's main parameters, methods, and usage.
+The Percept Data Analysis App helps users process and analyze Medtronic Percept BrainSense Timeline data efficiently. This guide explains the app's main parameters, methods, and usage.
 
 ## Adjustable Parameters
 
