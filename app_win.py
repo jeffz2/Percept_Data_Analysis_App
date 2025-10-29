@@ -536,7 +536,7 @@ class Plots(QWidget):
     def export_raw(self):
         file_path = gui_utils.open_save_dialog(self, "Save Raw Data", "")
         if file_path:
-            data = self.df_final.qurey("pt_id == @self.curr_pt")
+            data = self.df_final.query("pt_id == @self.curr_pt")
             gui_utils.save_raw_data(data, file_path)
 
     def export_data(self):

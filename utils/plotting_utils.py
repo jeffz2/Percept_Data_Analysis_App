@@ -339,14 +339,14 @@ def plot_metrics(
     if patient_dict["response_status"] == 1:
         t_val, p_val = stats.ttest_ind(
             violin_df.query("state_label == 0")[f"lfp_{hemisphere}_day_r2_{model}"],
-            violin_df.query("days_since_dbs >= @patient_dict['response_date']")[
+            violin_df.query("state_label == 3")[
                 f"lfp_{hemisphere}_day_r2_{model}"
             ],
             equal_var=False,
         )
         fig.add_trace(
             go.Violin(
-                y=violin_df.query("days_since_dbs >= @patient_dict['response_date']")[
+                y=violin_df.query("state_label == 3")[
                     f"lfp_{hemisphere}_day_r2_{model}"
                 ],
                 side="positive",

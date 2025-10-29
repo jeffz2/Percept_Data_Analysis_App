@@ -85,6 +85,8 @@ def predict_series_and_calc_R2_sliding_window(
     window_size: int = 3,
     timestamp_col: str = "CT_timestamp",
     threshold: float = 2.5,
+    ark: bool = False,
+    use_constant: bool = False
 ):
     """
     Fits autoregressive AR(1) model to data, then tests on a single day and returns predictions, daily R2 scores, prediction residuals, and residual variance.
@@ -156,10 +158,22 @@ def predict_series_and_calc_R2_sliding_window(
     ):  # If we don't have enough data, just skip this day.
         return results_df
 
-    model = sm.OLS(train_df_no_na[gt_colname], train_df_no_na[ar_features]).fit()
+    # if ark calculate significant lags on training data only
+    sig_lags = ar_features.copy()
+    if ark:
+        try:
+            sig_lags = select_significant_lags_kfold(
+                                train_df_no_na, ar_features, gt_colname
+                            )
+        except Exception:
+            sig_lags = select_significant_lags_kfold(train_df_no_na, ar_features, gt_colname, n_splits=2, threshold=1)
+    if use_constant:
+        sig_lags.append("constant")
+
+    model = sm.OLS(train_df_no_na[gt_colname], train_df_no_na[sig_lags]).fit()
 
     # Generate predictions for the test data using the fitted model.
-    preds = model.predict(test_df_no_na[ar_features])
+    preds = model.predict(test_df_no_na[sig_lags])
 
     # Save predictions to dataframe
     results_df.loc[test_df_no_na.index, preds_colname] = preds.values
@@ -181,7 +195,7 @@ def predict_series_and_calc_R2_sliding_window(
 
 
 def apply_sliding_window(
-    g, ar_features: list, gt_colname: str, window_size: int = 3, causal=False
+    g, ar_features: list, gt_colname: str, window_size: int = 3, causal=False, ark: bool =False, use_constant: bool=False
 ):
     """
     Apply a sliding window to a groupby object and return a DataFrame with the results of the sliding window.
@@ -220,7 +234,7 @@ def apply_sliding_window(
             continue
 
         day_results = predict_series_and_calc_R2_sliding_window(
-            window, ar_features, gt_colname, this_date, window_size
+            window, ar_features, gt_colname, this_date, window_size, ark=ark, use_constant=use_constant
         )
         results.append(day_results)
 
