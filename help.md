@@ -10,14 +10,14 @@ The Percept Data Analysis App helps users process and analyze Medtronic Percept 
 - There are 3 required parameters
     
     1. Patient ID: Unique patient identifier
-    2. Initial DBS Programming: The date DBS stimulation was initally turned on. Must be in YYYY-MM-DD format (2000-01-31).
+    2. Initial DBS Programming: The date DBS stimulation was initially turned on. Must be in YYYY-MM-DD format (2000-01-31).
     3. Response Status: The response status of the DBS patient.
         
-        - Response Date: If the patient is a responder, enter the date that clinical response was achieved. Enter the date in YYYY-MM-DD format or simply the number of days after inital DBS programming that response was achieved.
+        - Response Date: If the patient is a responder, enter the date that clinical response was achieved. Enter the date in YYYY-MM-DD format or simply the number of days after initial DBS programming that response was achieved.
 
 - Once the patient's parameters are entered, a directory selection window will appear. Select the parent directory containing all of the corresponding patient's JSON files. 
 
-**Model Parameters** : Adjust model paramters in the settings menu
+**Model Parameters** : Adjust model parameters in the settings menu
 
 - Artifact Correction Method
 
@@ -25,11 +25,11 @@ The Percept Data Analysis App helps users process and analyze Medtronic Percept 
 
     1. Simple Threshold: Remove all values with at least one overvoltage event
     2. Threshold and Interpolation: Identify all values with at least one overvoltage event. Remove them and interpolate missing data using PCHIP interpolation.
-    3. Overvoltage Event Removal: Identify and recalculate all values with at least one overvoltage event. Each 10-minute interval's amplitude average is calculated without the overvoltage events preserving non-artifact neural data. This method is preferred.
+    3. Overvoltage Event Removal: Identify and recalculate all values with at least one overvoltage event. Each 10-minute interval's amplitude average is calculated without the overvoltage events, preserving non-artifact neural data. This method is preferred.
 
 - Window Size
     
-    - The sliding window size (*n*) that the autoregressive model will train and test on. The autoregressive model makes predictions on the neural LFP values by training on the first *n*-1 day's values and predicting the last day's values. The *n*-day window slides across the patient's entire recording duration with a stride of one day. The default window size is 3 days.
+    - The sliding window size (*n*) that the autoregressive model will train and test on. The autoregressive model makes predictions on the neural LFP values by training on the first *n*-1 days' values and predicting the last day's values. The *n*-day window slides across the patient's entire recording duration with a stride of one day. The default window size is 3 days.
 
 - Delta Normalization
 
@@ -49,25 +49,25 @@ Read all JSON files within the patient's provided directory. All raw chronic LFP
 
 ### 2. Normalize and Correct Data
 
-Process all raw LFP data. Remove duplicate data readings, interpolate outliers and missing rows, correct overvoltage events using the specified method, and per day z-score LFP data. The lag terms are also calculated at this step.
+Process all raw LFP data. Remove duplicate data readings, interpolate outliers and missing rows, correct overvoltage events using the specified method, and per-day z-score LFP data. The lag terms are also calculated at this step.
 
 ### 3. Model Data
 
-An autoregressive (AR) model is used predict the LFP data. The model is applied to each patient's neural data with a sliding window of size *n* and a 1 day stride. The model can be entirely causal by training on the previous *n*-1 days' of neural data and predicting the window's last day of neural data. The model can also be applied as a non-causal method where the model is trained on neural data from the days flanking the window's center day and predicting that center day's neural data. 
+An autoregressive (AR) model is used to predict the LFP data. The model is applied to each patient's neural data with a sliding window of size *n* and a 1-day stride. The model can be entirely causal by training on the previous *n*-1 days' of neural data and predicting the window's last day of neural data. The model can also be applied as a non-causal method where the model is trained on neural data from the days flanking the window's center day and predicting that center day's neural data. 
 
-If an AR(k) model is used, significant lag terms are determined using an *n*-fold cross-validation with a ordinary least square regression model. For each fold of the cross-validation, significant lag terms (*p* < 0.05) were recorded. If the lag term was significant for more than half the folds, then the lag term was deemed significant. The default number of folds is 5. Lag terms with more than 50% `nan` values were dropped. 
+If an AR(k) model is used, significant lag terms are determined using an *n*-fold cross-validation with an ordinary least squares regression model. For each fold of the cross-validation, significant lag terms (*p* < 0.05) were recorded. If the lag term was significant for more than half the folds, then the lag term was deemed significant. The default number of folds is 5. Lag terms with more than 50% `nan` values were dropped. 
 
 The R² of the z-scored LFP data and the AR predicted data is calculated. 
 
 ### 4. Visualization
 
-A 3 panel plot is displayed after the analysis pipeline finishes. The patients and hemisphere can be adjusted with the dropdown menus in the top left corner of the window. General patient data and sample information is displayed in the left panel. The top plot shows the z-scored LFP data (gray) and the AR predicted LFP data (green) over time (CT time). The bottom left plot shows a scatter of the R² values over time (days since DBS activiation) colored by the clinical status. A 5-day moving average of the R² values is also shown in gray. The bottom right plot shows a violin plot of the R² values separated by clinical state.
+A 3-panel plot is displayed after the analysis pipeline finishes. The patients and hemisphere can be adjusted with the dropdown menus in the top left corner of the window. General patient data and sample information are displayed in the left panel. The top plot shows the z-scored LFP data (gray) and the AR predicted LFP data (green) over time (CT time). The bottom left plot shows a scatter of the R² values over time (days since DBS activation) colored by the clinical status. A 5-day moving average of the R² values is also shown in gray. The bottom right plot shows a violin plot of the R² values separated by clinical state.
 
 Stimulation parameter changes can be displayed on the LFP time series plot as well. Hovering over specific parameter change lines will display the specific parameter changes at that time. The raw LFP data, R² values, and plot can saved as well. 
 
 ## Usage Steps
 
-1. Save patients into the app.
+1. Save patients in the app.
 2. Configure analysis settings.
 3. Click "Run Analysis" to process data.
 4. View results and download output.
@@ -81,4 +81,4 @@ Stimulation parameter changes can be displayed on the LFP time series plot as we
 - If analysis fails, check file format and parameter settings.
 - For large datasets, processing may take longer.
 
-If problems persist, email [jz186@rice.edu](mailto:jz186@rice.edu) with a screenshot and decription of the issue.
+If problems persist, email [jz186@rice.edu](mailto:jz186@rice.edu) with a screenshot and description of the issue.
