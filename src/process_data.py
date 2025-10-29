@@ -3,7 +3,7 @@ import numpy as np
 import utils.utils as utils
 from zoneinfo import ZoneInfo
 from datetime import time as dttime
-from datetime import timedelta, datetime, date
+from datetime import datetime, timedelta
 import utils.state_utils as state_utils
 import json
 
@@ -84,7 +84,7 @@ def process_data(
 
     # Fix overvoltages and fill in holes in data using the specified method(s).
     # Adjust outlier filling methods as necessary
-    with open("data/param.json", "r") as f:
+    with open(utils.get_data_path("data\\param.json"), "r") as f:
         param_dict = json.load(f)
     name = param_dict["model"]
 

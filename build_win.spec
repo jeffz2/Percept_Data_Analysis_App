@@ -5,9 +5,11 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        ('C:/Users/jeffr/anaconda3/envs/percept_app/Lib/site-packages/kaleido', 'kaleido'),
+        ("C:/Users/Zion/anaconda3/envs/percept_build/Lib/site-packages/kaleido", 'kaleido'),
         ('icons/*.ico', 'icons'),
         ('data/*.json', 'data'),
+        ('src/*.py', 'src'),
+        ('utils/*.py', 'utils')
     ],
     hiddenimports=[],
     hookspath=[],
@@ -40,5 +42,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='Icon.ico'
+    icon='icons/Icon.ico'
 )

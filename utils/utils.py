@@ -1,18 +1,10 @@
 import numpy as np
 import pandas as pd
 from scipy.interpolate import PchipInterpolator
-from scipy.signal import find_peaks
-from statsmodels.regression.linear_model import OLS
-from statsmodels.tools import add_constant
-from datetime import datetime
-import json
-from typing import Any, Dict, List, Tuple, Union
-from pathlib import Path
-from datetime import timedelta, datetime, date
-from datetime import time as dttime
 from zoneinfo import ZoneInfo
-import os
-import sys
+from datetime import timedelta
+import os, sys, shutil
+from appdirs import user_data_dir
 
 central_time = ZoneInfo("America/Chicago")
 
@@ -23,6 +15,20 @@ def daily_operation(group, cols_to_operate, new_col_names, operation=pd.Series.v
         new_df[new_col] = operation(group[col])
     return new_df
 
+def get_data_path(subdir='data'):
+    """Return the path to the app's data directory, ensuring it's writable."""
+    if hasattr(sys, '_MEIPASS'):
+        # Running from a PyInstaller bundle
+        base_path = os.path.join(sys._MEIPASS, subdir)
+    else:
+        # Running from source
+        base_path = os.path.abspath(subdir)
+
+    # Create a user-writable copy in the local directory
+    user_data_dir = os.path.join(os.getcwd(), subdir)
+    if not os.path.exists(user_data_dir):
+        shutil.copytree(base_path, user_data_dir)
+    return user_data_dir
 
 def zscore_group(group, cols_to_zscore=["lfp_left_raw", "lfp_right_raw"]):
     """

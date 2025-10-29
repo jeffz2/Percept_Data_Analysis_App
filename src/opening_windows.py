@@ -1,34 +1,24 @@
 from PySide6.QtWidgets import (
-    QApplication,
     QWidget,
     QLabel,
     QLineEdit,
     QPushButton,
     QVBoxLayout,
     QHBoxLayout,
-    QTextEdit,
-    QProgressBar,
     QMessageBox,
     QCheckBox,
-    QComboBox,
     QToolBar,
-    QMainWindow,
-    QTableWidget,
-    QTableWidgetItem,
-    QHeaderView,
-    QDialog,
     QButtonGroup,
     QGroupBox,
     QFormLayout,
 )
 from PySide6.QtGui import QIcon, QAction
-from PySide6.QtCore import Qt, QUrl, QTimer, QSize
+from PySide6.QtCore import Qt, QUrl, QSize
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWebEngineWidgets import QWebEngineView
-import sys
 import os
 import json
-from utils.utils import resource_path
+from utils.utils import get_data_path, resource_path
 
 
 class OpeningScreen(QWidget):
@@ -145,9 +135,9 @@ class OpeningScreen(QWidget):
         toolbar.addAction(settings_button)
 
     def proceed(self):
-        if not os.path.exists(resource_path("data/patient_info.json")):
+        if not os.path.exists(get_data_path("data\\patient_info.json")):
             return WindowsError
-        with open(resource_path("data/patient_info.json"), "r") as f:
+        with open(get_data_path("data\\patient_info.json"), "r") as f:
             try:
                 patient_dict = json.load(f)
             except json.JSONDecodeError:
@@ -440,7 +430,7 @@ class SettingsMenu(QWidget):
         )
 
         try:
-            with open(resource_path("data/param.json"), "w") as f:
+            with open(get_data_path("data\\param.json"), "w") as f:
                 json.dump(param_dict, f, indent=4)
                 f.close()
         except Exception as e:

@@ -1,30 +1,23 @@
 from PySide6.QtWidgets import (
-    QApplication,
     QWidget,
     QLabel,
     QLineEdit,
     QPushButton,
     QVBoxLayout,
     QHBoxLayout,
-    QTextEdit,
-    QProgressBar,
     QMessageBox,
     QCheckBox,
-    QComboBox,
-    QToolBar,
-    QMainWindow,
     QTableWidget,
     QTableWidgetItem,
     QHeaderView,
     QDialog,
     QButtonGroup,
 )
-from PySide6.QtGui import QIcon, QAction
-from PySide6.QtCore import Qt, QUrl, QTimer, QSize
-from PySide6.QtGui import QDesktopServices
+
+from PySide6.QtCore import Qt
 import os
 import json
-from utils.utils import resource_path
+from utils.utils import get_data_path
 import utils.gui_utils as gui_utils
 from pathlib import Path
 
@@ -87,9 +80,9 @@ class PatientMenu(QWidget):
         self.table_layout.addWidget(self.table)
 
     def load_patient_data(self):
-        if not os.path.exists(resource_path("data/patient_info.json")):
+        if not os.path.exists(get_data_path("data\\patient_info.json")):
             return {}
-        with open(resource_path("data/patient_info.json"), "r") as f:
+        with open(get_data_path("data\\patient_info.json"), "r") as f:
             try:
                 return json.load(f)
             except json.JSONDecodeError:
@@ -238,7 +231,7 @@ class PatientMenu(QWidget):
 
             patients.update(pt_dict)
 
-            with open(resource_path("data/patient_info.json"), "w") as f:
+            with open(get_data_path("data\\patient_info.json"), "w") as f:
                 json.dump(patients, f, indent=4)
 
             dialog.accept()
@@ -289,7 +282,7 @@ class PatientMenu(QWidget):
                 return
 
             del patients[patient_id]
-            with open(resource_path("data/patient_info.json"), "w") as f:
+            with open(get_data_path("data\\patient_info.json"), "w") as f:
                 json.dump(patients, f, indent=4)
 
             dialog.accept()

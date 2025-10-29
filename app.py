@@ -25,10 +25,11 @@ from PySide6.QtWebEngineCore import QWebEngineSettings
 import src.generate_raw as generate_raw
 import src.process_data as process_data
 import src.model_data as model_data
+from utils.utils import get_data_path
 import utils.plotting_utils as plots
 import utils.gui_utils as gui_utils
 import multiprocessing
-import os
+import sys
 import json
 import pandas as pd
 import numpy as np
@@ -39,19 +40,12 @@ WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
 LOADING_SCREEN_INTERVAL = 100  # in milliseconds
 
-def resource_path(relative_path):
-    # Works for development and PyInstaller
-    if hasattr(sys, "_MEIPASS"):
-        return os.path.join(sys._MEIPASS, relative_path)
-    return os.path.join(os.path.abspath("."), relative_path)
-
-
 def worker_function(patient_dict, result_queue):
     try:
         df_final = pd.DataFrame()
         pt_changes_df = pd.DataFrame()
 
-        with open(resource_path("data/param.json"), "r") as f:
+        with open(get_data_path("data\\param.json"), "r") as f:
             param_dict = json.load(f)
 
         for pt in patient_dict.keys():
@@ -298,10 +292,10 @@ class Plots(QWidget):
 
         # Load static resources only once
         if not hasattr(Plots, "param_dict"):
-            with open(resource_path("data/param.json"), "r") as f:
+            with open(get_data_path("data\\param.json"), "r") as f:
                 self.param_dict = json.load(f)
         if not hasattr(Plots, "patient_dict"):
-            with open("data/patient_info.json") as f:
+            with open(get_data_path("data\\patient_info.json")) as f:
                 self.patient_dict = json.load(f)
 
         self.curr_pt = list(self.patient_dict.keys())[0]

@@ -1,8 +1,6 @@
 import numpy as np
 import pandas as pd
-from datetime import timedelta, datetime, date
-from datetime import time as dttime
-from pathlib import Path
+from datetime import timedelta,date
 import matplotlib.pyplot as plt
 from sklearn.model_selection import KFold  # type: ignore
 import statsmodels.api as sm
@@ -16,7 +14,7 @@ from sklearn.metrics import (  # type: ignore
     r2_score,
     accuracy_score,
 )
-from typing import Any, Dict, List, Tuple, Union, Iterable
+from typing import Any, Dict, Tuple, Iterable
 from statsmodels.tsa.stattools import acf
 from scipy import stats
 

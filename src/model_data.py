@@ -1,5 +1,5 @@
 import pandas as pd
-import numpy as np
+from utils.utils import get_data_path
 import utils.model_utils as model_utils
 import json
 
@@ -12,7 +12,7 @@ def model_data(
     ark=False,
     max_lag=144,
 ):
-    with open("data/param.json", "r") as f:
+    with open(get_data_path("data\\param.json"), "r") as f:
         param_dict = json.load(f)
     model = param_dict["model"]
     window_size = int(param_dict["Window size"])
