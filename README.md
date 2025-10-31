@@ -2,11 +2,11 @@
 
 ## Overview
 
-The Percept Desktop App is designed to provide an intuitive user interface for running the percept-data analysis pipeline for data collected from Medtronic Percept devices stored as BrainSense Timeline recordings, as detailed in this [paper](https://www.nature.com/articles/s41591-024-03125-0). The original program was developed using a combination of MATLAB and Python, as seen in the [PerceptDataAnalysis repository](https://github.com/shethlab/PerceptDataAnalysis) and includes updates to the autoregressive model and outlier handling methods as seen in the the [PerceptArtifactAnalysis repository](https://github.com/ProvenzaLab/PerceptArtifactAnalysis). This application translates all the code into Python and uses a Python-based library to create the GUI. The source code and instructions for downloading the app can be found on this GitHub repo
+The Percept Desktop App is designed to provide an intuitive user interface for running the percept-data analysis pipeline for data collected from Medtronic Percept devices stored as BrainSense Timeline recordings, as detailed in this [paper](https://www.nature.com/articles/s41591-024-03125-0). The original program was developed using a combination of MATLAB and Python, as seen in the [PerceptDataAnalysis repository](https://github.com/shethlab/PerceptDataAnalysis) and includes updates to the autoregressive model and outlier handling methods as described in the the [PerceptArtifactAnalysis repository](https://github.com/ProvenzaLab/PerceptArtifactAnalysis). This application translates all the code into Python and uses a Python-based library to create the GUI. The source code and instructions for downloading the app can be found on this GitHub repository.
 
 ## User Manual
 
-The app may be installed as an executable or run as a python script. To install the app, download and run the Percept_app_installer.exe found in releases. To run the app as a python script, clone this repository, and create an environment with all the required packages to run the app. Use the `app_win.py` script for Windows systems and the `app.py` script for MacOS systems.
+The app may be installed as an executable or run as a python script. To install the app, download and run the Percept_app_installer.exe found in releases. This function is only available for Windows currently but Mac users can still run the app as a python script. To run the app as a python script, clone this repository, and create an environment with all the required packages to run the app. Use the `app_win.py` script for Windows systems and the `app.py` script for MacOS systems.
 
 ### Dependencies
 
@@ -50,9 +50,8 @@ Data exporting is a key feature of the Percept Data Analysis App and was designe
 - Similar to plot downloads, when you enter a filename in the file dialog without an extension, it will default to `.csv`.
 - If you specify an extension, the file will be saved in the corresponding format, unknown file formats will default `.csv`.
 
-### Installation and Demo Video:
-- A demo video showcasing the app can be found [insert example video here]().
-
+### Demo Video:
+- A demo video showcasing the app can be found [here](https://drive.google.com/file/d/1lQqB9hKCxmDNotR2WSMLGGCxHG02cnSu/view?usp=sharing).
 
 ## Developer Guide
 
